@@ -1,0 +1,143 @@
+<title>Ensemble Session — Place Player Bets against PlayerAccount — Learning Record</title>
+<link rel="stylesheet" href="../assets/course.css">
+
+<p class="crumbs">LEARNING RECORD · Blackjack Ensemble course</p>
+<p class="eyebrow">17 July 2026</p>
+<h1>Ensemble Session — Place Player Bets against PlayerAccount</h1>
+
+<p><strong>Date:</strong> 2026-07-17 <strong>Repo:</strong> <a href="https://github.com/tedyoung/blackjack-ensemble-blue"><code>tedyoung/blackjack-ensemble-blue</code></a> (branch <a href="https://github.com/tedyoung/blackjack-ensemble-blue/tree/mob-session"><code>mob-session</code></a>) <strong>Format:</strong> Mob/ensemble via <code>mob.sh</code> + Zoom <strong>Participants (from commits):</strong> Ted M. Young, Lada Kesseler, CodeItQuick, Daniel Ranner, Tom Spencer</p>
+<hr>
+<h2>Goal of the session</h2>
+<p>Turn the deliberately-failing WIP test <code>GameServiceTest.placeBetsForPlayerAccountWithInsufficientBalanceThrowsException</code> green <strong>for the right reason</strong>, and start wiring <code>GameService.placePlayerBets(...)</code> to the event-sourced <code>PlayerAccount</code> — the money/wallet side of placing a bet.</p>
+<hr>
+<h2>What we changed (from the git diff, not the "mob next" messages)</h2>
+<h3>1. <code>GameService.placePlayerBets(...)</code> — implemented (smallest step)</h3>
+<pre><code>public void placePlayerBets(List&lt;PlayerBet&gt; bets) {
+    PlayerBet firstPlayerBet = bets.getFirst();
+    Optional&lt;PlayerAccount&gt; playerAccount =
+            playerAccountRepository.find(firstPlayerBet.playerId());
+    playerAccount.ifPresent(account -&gt; {
+        account.bet(firstPlayerBet.bet().amount());   // throws InsufficientBalance if too low
+        playerAccountRepository.save(account);
+    });
+    currentGame.placePlayerBets(bets);
+}</code></pre>
+<ul>
+  <li>Uses <code>find(...).ifPresent(...)</code> so tests with <strong>no account</strong> simply skip (they stay green) — only a <em>found</em> account with too little balance throws.</li>
+  <li>Deliberately handles <strong>only the first bet</strong> (<code>getFirst()</code>) — a fake-it/smallest-step to get to green before generalising to all players.</li>
+</ul>
+<h3>2. <code>GameService.createForTest(...)</code> — signature shielding, and one <code>null</code> removed</h3>
+<ul>
+  <li><code>createForTest(Shuffler)</code> now passes <strong><code>new PlayerAccountRepository()</code></strong> instead of <code>null</code>.</li>
+  <li>Added a shielded factory <code>createForTest(GameMonitor, Shuffler)</code> so tests stop calling the raw 4-arg constructor.</li>
+</ul>
+<h3>3. <code>GameServiceTest.placeBetsForPlayerAccountWithInsufficientBalanceThrowsException</code></h3>
+<ul>
+  <li><strong>IDs aligned</strong> so the account is actually found (killed the false-green): <code>withNextId(74)</code> + <code>PlayerId.of(9)</code> → <code>withNextId(111)</code> + <code>PlayerId.of(111)</code>.</li>
+  <li><strong>Assertion made more expressive</strong> — <code>assertThatIllegalStateException()</code> → <code>assertThatExceptionOfType(InsufficientBalance.class)</code>. We let the <em>meaningful domain exception</em> win instead of forcing a generic one.</li>
+</ul>
+<h3>4. <code>GameServiceTest.placeBetsReducesPlayerAccountBalance</code> — un-<code>@Disabled</code> and implemented</h3>
+<pre><code>var repo = PlayerAccountRepository.withNextId(7);
+var account = PlayerAccount.register("enough money");
+account.deposit(30);
+repo.save(account);                                   // account seeded via the aggregate
+...
+gameService.placePlayerBets(List.of(new PlayerBet(PlayerId.of(7), Bet.of(13))));
+assertThat(repo.find(PlayerId.of(7))).get()
+        .extracting(PlayerAccount::balance).isEqualTo(30 - 13);   // 17</code></pre>
+<p>Replaced the <code>fail("Start here")</code> placeholder with a real behaviour assertion.</p>
+<h3>5. <code>MultiPlayerGameMonitorTest</code> — moved onto the shield</h3>
+<ul>
+  <li><code>new GameService(spy, DUMMY_GAME_REPOSITORY, new StubShuffler(), null)</code> → <code>GameService.createForTest(gameMonitorSpy, new StubShuffler())</code>.</li>
+</ul>
+<hr>
+<h2>The domain behaviour behind it</h2>
+<p><code>PlayerAccount</code> is an <strong>event-sourced aggregate</strong>:</p>
+<ul>
+  <li><code>register</code> / <code>deposit</code> / <code>bet</code> don't mutate fields — they <strong>enqueue events</strong> (<code>MoneyDeposited</code>, <code>MoneyBet</code>, <code>PlayerWonGame</code>).</li>
+  <li><code>apply(event)</code> folds each event into <code>balance</code> (<code>+= amount</code>, <code>-= amount</code>, …).</li>
+  <li><code>PlayerAccountRepository.save()</code> appends the fresh events; <code>find()</code> <strong>replays</strong> them (<code>reconstitute</code>) to rebuild the account.</li>
+</ul>
+<p>So "placing a bet" = look up the account, append a <code>MoneyBet</code> event (which <code>bet()</code> refuses if the balance is too low), and save — then a later <code>find()</code> sees the reduced balance.</p>
+<hr>
+<h2>Best practices we followed</h2>
+<ul>
+  <li><strong>Don't introduce <code>null</code> when changing a signature.</strong> Replace it with a real cheap object (<code>new PlayerAccountRepository()</code>) or a no-op dummy (<code>game -&gt; {}</code>), or shield it.</li>
+  <li><strong>Signature shielding.</strong> Route tests through a <code>createForTest(...)</code> creation method so a constructor change is one edit, not many. (The tests still on the raw constructor were exactly the ones that broke earlier — proof the shield works.)</li>
+  <li><strong>Smallest change to green, then improve.</strong> <code>getFirst()</code> before looping all bets.</li>
+  <li><strong>Read the red.</strong> The failing test showed <code>InsufficientBalance</code> where it expected <code>IllegalStateException</code>. The "unexpected" exception was the <em>more correct</em> one — so we asserted it, rather than dumbing the code down to a generic exception.</li>
+  <li><strong>Seed test state through the aggregate</strong>, not by poking fields — <code>register</code> → <code>deposit</code> → <code>save</code>.</li>
+  <li><strong>Enable the next disabled test</strong> as the next red step (TDD triangulation).</li>
+</ul>
+<h2>Key lessons</h2>
+<ol>
+  <li><strong><code>null</code> is a hidden landmine.</strong> It's harmless until the first code path <em>uses</em> the dependency, then it's an NPE at every construction site. Shield or supply a real/dummy value instead.</li>
+  <li><strong>A failing test with an unexpected-but-correct result is a design cue</strong>, not a mechanical fix — let the more expressive domain exception drive the code.</li>
+  <li><strong>Parallel change &amp; signature shielding both use deliberate, temporary duplication as a stepping stone</strong>: expand (duplicate) → migrate callers one-by-one (stay green) → contract (delete the old). Safe only if you finish by removing the duplication.</li>
+  <li><strong>Break large refactors into small safe steps</strong> — green before and after each step, so a red bar names its own culprit. (See the Mikado Method / TCR for drilling this.)</li>
+</ol>
+<hr>
+<h2>Deep dive: the techniques in full</h2>
+<h3>Signature shielding</h3>
+<p><strong>In one sentence:</strong> route tests through a single creation method or builder instead of calling a production constructor/method directly, so that when its signature changes you fix it in <em>one place</em> rather than across every test.</p>
+<p>The live example is <code>createForTest</code>:</p>
+<pre><code>public static GameService createForTest(Shuffler shuffler) {
+    return new GameService(game -&gt; {}, game -&gt; {}, shuffler, new PlayerAccountRepository());
+}</code></pre>
+<ul>
+  <li>Most tests do <code>GameService.createForTest(new StubShuffler())</code> and <strong>never touch the raw 4-arg constructor</strong>. So when the constructor grew a <code>PlayerAccountRepository</code> parameter, only <code>createForTest</code> changed — the ~13 tests through it kept compiling.</li>
+  <li>The shield <strong>failed where it wasn't used</strong>: tests that called <code>new GameService(dummyGameMonitor, repositorySpy, new StubShuffler(), null)</code> directly were exactly the ones that broke and had to be edited by hand. Shielded tests survived; unshielded ones didn't.</li>
+  <li>Bonus: the factory <strong>hides irrelevant parameters</strong> by passing no-op lambdas (<code>game -&gt; {}</code>) for the monitor the test doesn't care about — keeping tests about behaviour, not construction plumbing.</li>
+</ul>
+<p><strong>Goal to aim for:</strong> when the ensemble adds a parameter, <em>one edit to the creation method, zero edits to the tests using it.</em></p>
+<h3><code>null</code> vs a real-or-dummy value</h3>
+<p>Never introduce <code>null</code> when you change a signature. A <code>null</code> argument is a hidden landmine — harmless until the first code path actually <em>uses</em> the dependency, then it's an NPE at every call site. Supply the cheapest <strong>honest</strong> value instead:</p>
+<ul>
+  <li><strong>Real cheap instance</strong> when the test needs it to behave — <code>new PlayerAccountRepository()</code>.</li>
+  <li><strong>No-op dummy</strong> when the test doesn't care — a lambda like <code>GameMonitor game -&gt; {}</code>.</li>
+</ul>
+<p>Both are honest and safe; <code>null</code> is neither.</p>
+<h3>Small safe steps</h3>
+<p>A step is <strong>safe</strong> when tests are green before <em>and</em> after it. A step is <strong>small</strong> when a red bar names its own culprit, because you only changed one thing. Together: <em>never be more than one <code>git revert</code> away from a working system.</em></p>
+<p>The cautionary tale was ours — implementing <code>placePlayerBets</code> in one leap turned ~20 tests red at once (a mix of NPEs and "no account" errors) and we had to reverse-engineer which change caused which failure. The same destination in small steps stays green the whole way.</p>
+<p>Named moves to reach for:</p>
+<ul>
+  <li><strong>Parallel change (expand → migrate → contract)</strong> — add the new form beside the old (both work), migrate callers one at a time (green after each), then delete the old. The <code>createForTest</code> overloads are exactly this.</li>
+  <li><strong>Branch by abstraction</strong> — introduce an interface over the thing you're replacing, move everyone onto it (green), swap the implementation, delete the old. How you'd safely turn a concrete <code>PlayerAccountRepository</code> into a port.</li>
+  <li><strong>Preparatory refactoring</strong> — "make the change easy (this may be hard), then make the easy change."</li>
+  <li><strong>Lean on the compiler</strong> — make the breaking change deliberately, use the compile errors as a worklist you can't miss a spot on.</li>
+  <li><strong>Prefer automated refactorings</strong> (Rename, Extract Method, Change Signature) — behaviour-preserving by construction, so always a safe step.</li>
+</ul>
+<p>For large refactors, the <strong>Mikado Method</strong> plans it: attempt the goal naively, and when it breaks <em>don't fix forward</em> — note the prerequisites, revert to green, do those first (recursively), and execute the resulting dependency graph leaves-first. To drill the habit, <strong>TCR</strong> (<code>test &amp;&amp; commit || revert</code>) is the most brutal teacher — you can't stay red, so steps stay tiny.</p>
+<h3>Duplication as a stepping stone</h3>
+<p>Parallel change and signature shielding are two instances of <strong>duplicate → migrate → converge</strong>. You stand up the new form beside the old (that coexistence <em>is</em> the duplication), migrate callers one by one staying green, then delete the old form so the duplication disappears.</p>
+<p>This is not the "bad" DRY-violating duplication — it's <strong>intentional, temporary, green-keeping</strong>. Duplication is a smell at rest but a technique in motion; the distinction is whether it's on its way out. The one discipline that makes it safe: you <strong>must</strong> take the contract step — a shield or overload you introduce and then leave stops being a scaffold and becomes real debt.</p>
+<h3>Event-sourced aggregate (the domain machinery)</h3>
+<p><code>PlayerAccount</code> combines two DDD ideas:</p>
+<ul>
+  <li><strong>Aggregate</strong> — a cluster of objects with one consistency boundary, reached through a root that guards invariants. Nobody edits <code>balance</code> directly; they call <code>bet()</code> / <code>deposit()</code>.</li>
+  <li><strong>Event sourcing</strong> — store the <em>sequence of events</em> (<code>deposited 10</code>, <code>bet 5</code>), not the current state, and derive state by replaying them. Events are the source of truth; state is a fold over them.</li>
+</ul>
+<p>Commands don't mutate state — they <strong>emit events</strong>:</p>
+<pre><code>public void bet(int amount) {
+    if (balance &lt; amount) throw new InsufficientBalance(...);
+    enqueue(new MoneyBet(amount));      // record the fact
+}</code></pre>
+<ul>
+  <li><code>apply(event)</code> is the <strong>only</strong> place state changes — it folds each event into <code>balance</code> (<code>MoneyDeposited</code> → <code>+= amount</code>, <code>MoneyBet</code> → <code>-= amount</code>, <code>PlayerWonGame</code> → <code>+= payout</code>).</li>
+  <li><code>reconstitute(playerId, events)</code> rebuilds an aggregate by replaying its whole event list.</li>
+  <li>The repository stores <strong>events, not state</strong> — <code>save()</code> appends the fresh events, <code>find()</code> reads and replays them.</li>
+</ul>
+<p><strong>One-liner:</strong> an event-sourced aggregate treats state as a left-fold over an append-only list of events — <code>bet()</code>/<code>deposit()</code> append facts, <code>apply()</code> folds them into the balance, and <code>reconstitute()</code> replays the whole list to rebuild the object. This is also <em>why</em> we seed test state through the aggregate (<code>register</code> → <code>deposit</code> → <code>save</code>) — you set up state by supplying past events, not by poking fields.</p>
+<hr>
+<h2>Follow-ups / not yet done</h2>
+<ul>
+  <li><code>placePlayerBets</code> only handles <strong>the first bet</strong> — generalise to loop all <code>bets</code> (multi-player).</li>
+  <li>Clean up leftovers in <code>GameService</code>: the commented-out <code>if (playerAccountRepository != null)</code> and the new <code>createForTest(GameMonitor, Shuffler)</code> factory that still passes <code>null</code> internally (contract step — remove the stepping-stone <code>null</code>).</li>
+  <li>Wire the <strong>win/payout</strong> side (<code>execute()</code> game-over path still has <code>// repository.save(...)</code> comments and a <code>PlayerWonGame</code> event waiting to be used).</li>
+</ul>
+
+<div class="footer-nav">
+<span><a href="index.html">◀ All learning records</a></span>
+<span><a href="../index.html">Course home</a></span>
+</div>
