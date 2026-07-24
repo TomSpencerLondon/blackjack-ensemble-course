@@ -81,11 +81,28 @@ for (PlayerResult result : game.playerResults()) {
 - **`win()` vs `lose()`**: `win(payout, outcome)` enqueues `PlayerWonGame` (balance += payout);
   `lose(outcome)` enqueues `PlayerLostGame` (balance unchanged — money already gone).
 
+## Correction (2026-07-24, after Tom reviewed the lesson)
+
+Two things the first cut of Lesson 0004 got wrong, now fixed:
+
+1. **`PlayerAccount.win()` is already implemented AND unit-tested** — `PlayerAccountTest`
+   `winEmitsPlayerWonGame` + `playerWonGameIncreasesBalance`. So there is nothing to build/test on
+   the domain `win` function; the only gap is the **wiring** in `execute()`. Don't re-test win through
+   GameService.
+2. **A balance assertion cannot force the win-vs-lose branch.** Verified: a busting player under
+   win-only code hits `win(0, PLAYER_BUSTED)` → `balance += 0` → unchanged, so a balance test passes
+   with *no branch*. The only thing distinguishing win(0) from lose() is the **recorded event**
+   (`PlayerWonGame` vs `PlayerLostGame`). So the elegant home for the decision is the **domain**
+   (e.g. `PlayerAccount.settle(PlayerResult)`), unit-tested via `freshEvents()`, leaving the service
+   branch-free. The current repo state: `execute()` has a *started* loop over `game.playerIds()` that
+   finds the account and does nothing; the win test is present but `@Disabled`.
+
 ## The likely arc tonight (interleaved reds)
 
-1. **win path** — done in the lesson (tracer bullet).
-2. **lose/push branch** — a "player busts, balance unchanged, `PlayerLostGame` recorded" test forces
-   `if (result.payout() > 0) win else lose`. (Win-only code records the *wrong event* for a bust.)
+1. **win path** — balance-driven integration test; GREEN by switching the started loop from
+   `game.playerIds()` to `game.playerResults()` and calling `win()` + `save()`. (tracer bullet)
+2. **win/lose decision** — event-driven, NOT balance-driven (see correction #2). Best pushed into the
+   domain as `settle(...)`, unit-tested on `freshEvents()`.
 3. **multi-player** — two accounts/two outcomes forces `placePlayerBets` to stop faking with
    `getFirst()` and loop all bets; then delete the commented-out `// if (playerAccountRepository
    != null)` scaffold (the **contract** step).

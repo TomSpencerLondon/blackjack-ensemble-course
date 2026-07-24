@@ -12,8 +12,8 @@ By the end you'll have written a <strong>failing</strong> <code>GameServiceTest<
 </div>
 
 <div class="callout warn">
-<span class="tag">Why this one is different from 0004's predecessor</span>
-In Lesson 0002 the test went green the instant you wrote it — good for <em>reading</em> code, useless for <em>driving</em> it. This lesson is the opposite: the behaviour <strong>does not exist yet</strong>. The test must fail first. That red bar is the whole point — it's the failing spec that the production code has to satisfy.
+<span class="tag">Two seams — and the lower one is already done</span>
+Be precise about what's missing. The <strong>domain</strong> method <code>PlayerAccount.win(payout, outcome)</code> is already implemented <em>and</em> unit-tested — see <code>PlayerAccountTest.winEmitsPlayerWonGame</code> and <code>playerWonGameIncreasesBalance</code>. So we do <strong>not</strong> re-test <code>win</code>'s internals here. The only gap is the <em>application-layer wiring</em> in <code>GameService.execute()</code> that calls it. That's the single behaviour this lesson drives, test-first, from red.
 </div>
 
 <h2>1 · Where we are — money out, money in</h2>
@@ -22,22 +22,19 @@ In Lesson 0002 the test went green the instant you wrote it — good for <em>rea
 <tr><th>Step</th><th>What happens to the account</th><th>Status</th></tr>
 <tr><td><code>placePlayerBets(...)</code></td><td><code>account.bet(amount)</code> → balance <strong>− bet</strong>, saved</td><td class="mono res">done (last session)</td></tr>
 <tr><td>game plays out…</td><td>—</td><td class="mono">—</td></tr>
-<tr><td><code>execute(...)</code> sees <code>isGameOver()</code></td><td><em>should</em> pay winners: balance <strong>+ payout</strong></td><td class="mono red">not wired — tonight</td></tr>
+<tr><td><code>execute(...)</code> sees <code>isGameOver()</code></td><td><em>should</em> pay winners: balance <strong>+ payout</strong></td><td class="mono red">started, not finished</td></tr>
 </table>
-<p>The unfinished half is sitting in the code as pseudocode. Open <code>application/GameService.java</code> and find <code>execute(...)</code>:</p>
-<pre><code>private void execute(GameCommand command) {
-    Game game = currentGame();
-    command.execute(game);
-    if (game.isGameOver()) {
-        gameMonitor.gameCompleted(game);
-        gameRepository.saveOutcome(game);
-        <span class="comment">// loop through all playerIds in the Game:</span>
-            <span class="comment">// retrieved PlayerAccount from Repository</span>
-            <span class="comment">// playerAccount.win(payout, playerOutcome)</span>
-            <span class="comment">// repository.save(playerAccount)</span>
+<p>Open <code>application/GameService.java</code> and find <code>execute(...)</code>. The ensemble has <strong>started</strong> the loop — but it finds the account and then does nothing with it:</p>
+<pre><code>if (game.isGameOver()) {
+    gameMonitor.gameCompleted(game);
+    gameRepository.saveOutcome(game);
+    for (PlayerId playerId : game.playerIds()) {
+        Optional&lt;PlayerAccount&gt; playerAccount =
+                playerAccountRepository.find(playerId);   <span class="comment">// ← found, but never credited</span>
     }
+    <span class="comment">// still TODO: playerAccount.win(payout, outcome) + save(...)</span>
 }</code></pre>
-<p>Turning those four comments into working code — test-first — <strong>is</strong> tonight's session. The good news: every collaborator it needs already exists.</p>
+<p>The account is looked up and then dropped on the floor — no <code>win</code>, no <code>save</code>. Finishing that — test-first — <strong>is</strong> tonight's session. Every collaborator it needs already exists.</p>
 
 <h2>2 · The seam — three objects already built for you</h2>
 <p>You don't have to invent an API; you have to <em>connect</em> one. Three pieces are waiting:</p>
@@ -81,10 +78,11 @@ The domain (<code>PlayerResult</code>, <code>PlayerAccount.win/lose</code>) is <
 </details>
 </div>
 
-<h2>4 · RED — write the failing test first <span class="comment">(this is the tracer bullet)</span></h2>
+<h2>4 · RED — the failing test <span class="comment">(this is the tracer bullet)</span></h2>
+<p>This test is already in your <code>GameServiceTest</code> — but marked <code>@Disabled</code>, so it isn't running. <strong>Delete the <code>@Disabled</code></strong> to bring it back to life; it should go red. (If you're starting fresh, here it is in full — you'll also need <code>import com.jitterted.ebp.blackjack.domain.StubDeck;</code>.)</p>
 <div class="callout task">
 <span class="tag">Task · in <code>application/GameServiceTest.java</code> · expect RED</span>
-<p>Add the import <code>import com.jitterted.ebp.blackjack.domain.StubDeck;</code>, then add this test. It sets up a real account, plays a game the player <strong>wins</strong>, and asserts the account was paid:</p>
+<p>A real account, a game the player <strong>wins</strong>, and an assertion that the account was paid:</p>
 <pre><code>@Test
 void whenPlayerWinsGameOverPaysPayoutIntoPlayerAccount() {
     PlayerAccountRepository accounts = PlayerAccountRepository.withNextId(9);
@@ -109,36 +107,56 @@ void whenPlayerWinsGameOverPaysPayoutIntoPlayerAccount() {
 <p><strong>Predict, then run</strong> just this test (<kbd>⌃⇧R</kbd>). What number will the failure report as <em>“but was”</em>?</p>
 <details class="answer"><summary>reveal the red bar</summary>
 <p class="res mono">expected: 61 &nbsp;but was: 39</p>
-<p class="why">39, because the bet was deducted but <code>execute()</code> never pays the winner — the payout loop is still four comments. <strong>This is the correct red:</strong> the test fails precisely because the behaviour you're about to build is missing. (Verified — this is the real output.)</p>
+<p class="why">39, because the bet was deducted but the started loop in <code>execute()</code> <em>finds</em> the account and never credits it. <strong>This is the correct red:</strong> the test fails precisely because the behaviour you're about to build is missing. (Verified — this is the real output.)</p>
 </details>
 </div>
 
-<h2>5 · GREEN — the smallest wiring that pays a winner</h2>
-<p>Now make it pass with the minimum. Add <code>import ...domain.PlayerResult;</code> and replace the four comments in <code>execute()</code>:</p>
-<pre><code>for (PlayerResult result : game.playerResults()) {
+<h2>5 · GREEN — iterate <code>playerResults()</code>, not <code>playerIds()</code></h2>
+<p>The started loop uses <code>game.playerIds()</code> — but an id alone can't tell you the payout, so you'd have to <em>re-derive</em> each player's outcome and bet. Don't. <code>game.playerResults()</code> hands you a <code>PlayerResult</code> that already carries <code>playerId()</code>, <code>outcome()</code>, and <code>payout()</code>. Swap the loop, add <code>import ...domain.PlayerResult;</code>, and credit the account:</p>
+<pre><code>for (PlayerResult result : game.playerResults()) {   <span class="comment">// was: game.playerIds()</span>
     playerAccountRepository.find(result.playerId())
             .ifPresent(account -> {
                 account.win(result.payout(), result.outcome());
                 playerAccountRepository.save(account);
             });
 }</code></pre>
-<p>Run the test → <span class="green">green</span>. One winning path, wired. Notice what you did <em>not</em> do: no <code>lose()</code>, no push handling, no multi-player generalising. You only wrote enough to satisfy the one test — the TDD discipline of <a href="../reference/repo-map.html">small, safe steps</a>. <em>(Verified: this passes, and the other 244 tests stay green.)</em></p>
+<p>Run the test → <span class="green">green</span>. That switch from <code>playerIds()</code> to <code>playerResults()</code> is the elegant move — <em>tell, don't ask</em>: the <code>Game</code> computed the result; the service just applies it. Notice what you did <em>not</em> do: no <code>lose()</code>, no push handling, no multi-player generalising — only enough to satisfy the one test (<a href="../reference/repo-map.html">small, safe steps</a>). <em>(Verified: this passes; full suite 245 green.)</em></p>
 
-<h2>6 · The next reds — how tonight will actually unfold</h2>
-<p>Each of these is the <em>next</em> failing test that forces the <em>next</em> slice of code. This is the interleaving you'll do live — jot your prediction next to each:</p>
+<h2>6 · The loss path — the subtle red that teaches where a decision belongs</h2>
+<p>Obvious next test: a player <em>busts</em>, so nothing is paid. You might reach for a balance assertion — but here's the trap:</p>
 <div class="quiz">
-<p class="q">a. Test: player <em>busts</em>, account had 50, bet 11 → assert balance still 39. Why does the win-only code above fail it?</p>
+<p class="q">a. Player busts (account 50, bet 11). You assert <code>balance == 39</code>. Does that test <em>force</em> you to add a <code>lose()</code> branch?</p>
 <details class="answer"><summary>reveal</summary>
-<p class="why">Payout is 0, but the code still calls <code>win(0, PLAYER_BUSTED)</code> — which enqueues a <code>PlayerWonGame</code> event. Wrong event recorded (even though balance happens to be unchanged). The red forces the branch: <code>if (result.payout() &gt; 0) account.win(...) else account.lose(...)</code>. <em>That's</em> the triangulating step.</p>
+<p class="res mono">No — it passes without one</p>
+<p class="why">With the win-only code, a busted player hits <code>win(0, PLAYER_BUSTED)</code>. Payout is 0, so <code>balance += 0</code> → still 39. The balance test is <span class="green">green</span> with <em>no branch at all</em>. Balance can't distinguish a <code>win(0)</code> from a <code>lose()</code> — the difference is the <strong>event recorded</strong> (<code>PlayerWonGame</code> vs <code>PlayerLostGame</code>). <em>(Verified — this really passes.)</em></p>
 </details>
 </div>
 <div class="quiz">
-<p class="q">b. What's still asymmetric between <code>placePlayerBets</code> and this new payout loop?</p>
+<p class="q">b. So what's the <em>elegant</em> way to drive win-vs-lose? Where should that decision live?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="why">Since only the <em>event</em> distinguishes them, test at the seam where the event is observable — the <strong>domain</strong>. Give <code>PlayerAccount</code> one command that decides, e.g. <code>settle(PlayerResult)</code>, and unit-test it against <code>freshEvents()</code> (win → <code>PlayerWonGame</code>, loss → <code>PlayerLostGame</code>) — exactly like the existing <code>winEmitsPlayerWonGame</code> test. Then the service loses its <code>if</code> entirely:</p>
+<pre><code>for (PlayerResult result : game.playerResults()) {
+    playerAccountRepository.find(result.playerId())
+            .ifPresent(account -> {
+                account.settle(result);          <span class="comment">// domain decides win vs lose</span>
+                playerAccountRepository.save(account);
+            });
+}</code></pre>
+<p>The pragmatic alternative — an <code>if (payout &gt; 0) win else lose</code> in the service — works, but its only honest test has to inspect events after <code>save()</code>, which is awkward. That awkwardness is the design telling you the decision wants to be in the aggregate. Float <code>settle</code> to the mob tonight.</p>
+</details>
+</div>
+<div class="quiz">
+<p class="q">c. What's still asymmetric between <code>placePlayerBets</code> and this new payout loop?</p>
 <details class="answer"><summary>reveal</summary>
 <p class="why"><code>placePlayerBets</code> still only handles <code>bets.getFirst()</code> — a deliberate fake from last session. The payout side already loops <em>all</em> <code>playerResults()</code>. A multi-player test (two accounts, two outcomes) is the red that finally makes <code>placePlayerBets</code> loop too — and lets you delete the commented-out <code>// if (playerAccountRepository != null)</code> scaffold (the contract step).</p>
 </details>
 </div>
-<p>So the likely arc tonight: <strong>win path</strong> (you've done it) → <strong>lose/push branch</strong> → <strong>multi-player</strong> → clean up the <code>getFirst()</code> fake and the leftover comments. You'll be one step ahead the whole way.</p>
+<p>So the likely arc tonight: <strong>win path</strong> (balance-driven) → <strong>win/lose decision</strong> (event-driven, ideally in the domain) → <strong>multi-player</strong> → clean up the <code>getFirst()</code> fake and the leftover comments.</p>
+
+<div class="callout rule">
+<span class="tag">The one thing to remember</span>
+<code>win()</code> is <strong>already built and tested</strong> in the domain — don't re-test it through <code>GameService</code>. Drive the <em>wiring</em> with one balance-based integration test; drive the <em>win-vs-lose decision</em> with an event-based domain test. One behaviour per seam, no duplication.
+</div>
 
 <h2>Primary source</h2>
 <p>The behaviour behind the events — why <code>win()</code>/<code>lose()</code> enqueue rather than mutate — is in your own <a href="../learning-records/2026-07-17-ensemble-place-player-bets.md">last session's learning record</a> (event-sourced aggregate). For the money-in/money-out modelling, Ted Young's ensemble is the source: <a href="https://tedyoung.me/">tedyoung.me</a>. On driving from a failing test in small safe steps, Kent Beck, <em>Test-Driven Development: By Example</em> — the “red → green → refactor” and triangulation chapters.</p>
