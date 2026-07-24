@@ -1,0 +1,95 @@
+<title>find() — rebuilding a PlayerAccount from events</title>
+<link rel="stylesheet" href="../assets/course.css">
+
+<p class="crumbs">REFERENCE · Event sourcing · Blackjack Ensemble course</p>
+<p class="eyebrow">Reference card — print me</p>
+<h1><code>PlayerAccountRepository.find()</code></h1>
+<p class="subtitle">How the repository rebuilds a <code>PlayerAccount</code> aggregate by <em>replaying its stored events</em> — the read side of event sourcing. Pairs with the Repo Map's “two ways state is held”.</p>
+
+<div class="callout rule">
+<span class="tag">The one idea</span>
+The balance is <strong>never stored</strong>. An account's state is <em>derived</em> every time by replaying its events in order. <code>find()</code> reads the event rows, turns them back into domain events, and folds them into a fresh account.
+</div>
+
+<h2>1 · The pipeline at a glance</h2>
+<pre><code>find(playerId)
+     │
+     ▼
+eventDtosByPlayer.get(playerId)        <span class="comment"># Map&lt;PlayerId, List&lt;EventDto&gt;&gt;</span>
+     │
+     ├─ null ───────────────▶ Optional.empty()      <span class="comment"># unknown player → no account</span>
+     │
+     └─ List&lt;EventDto&gt;
+             │
+             ▼
+       mapPlayer(playerId, events)
+             │   each EventDto.toDomain()    <span class="comment"># JSON ─▶ PlayerAccountEvent record</span>
+             ▼
+       PlayerAccount.reconstitute(playerId, events)
+             │   new PlayerAccount(...): apply(event) for each, in order
+             ▼
+       Optional&lt;PlayerAccount&gt;             <span class="comment"># balance &amp; name folded up from events</span></code></pre>
+
+<p>The real method is tiny — the elegance is that it delegates:</p>
+<pre><code>public Optional&lt;PlayerAccount&gt; find(PlayerId playerId) {
+    return Optional.ofNullable(eventDtosByPlayer.get(playerId))
+                   .map(events -> mapPlayer(playerId, events));
+}
+
+private PlayerAccount mapPlayer(PlayerId playerId, List&lt;EventDto&gt; eventDtos) {
+    List&lt;PlayerAccountEvent&gt; events = eventDtos.stream()
+                                              .map(EventDto::toDomain)   <span class="comment">// row → event</span>
+                                              .toList();
+    return PlayerAccount.reconstitute(playerId, events);                 <span class="comment">// events → account</span>
+}</code></pre>
+
+<h2>2 · What each step does</h2>
+<table>
+<tr><th>#</th><th>Step</th><th>Detail</th></tr>
+<tr><td class="mono">1</td><td><strong>Look up the event stream</strong></td><td>The repo is an in-memory event store: a <code>Map&lt;PlayerId, List&lt;EventDto&gt;&gt;</code> named <code>eventDtosByPlayer</code>. <code>find()</code> asks the map for this player's list of events.</td></tr>
+<tr><td class="mono">2</td><td><strong>No events → no account</strong></td><td><code>Optional.ofNullable(...)</code> means an unknown player yields <code>Optional.empty()</code>. Nothing is invented — no events, no account.</td></tr>
+<tr><td class="mono">3</td><td><strong>Deserialize each row</strong></td><td>Each <code>EventDto</code> is one stored “row” (<code>playerId, eventId, eventType, json</code>). <code>toDomain()</code> uses the <code>eventType</code> string to pick the record class from a converter map, and Jackson turns the JSON back into a domain event like <code>PlayerRegistered("Judy")</code>.</td></tr>
+<tr><td class="mono">4</td><td><strong>Reconstitute the aggregate</strong></td><td><code>PlayerAccount.reconstitute(playerId, events)</code> is the <code>@Reconstitute</code> factory. It requires a non-null <code>playerId</code>, then calls the private constructor.</td></tr>
+<tr><td class="mono">5</td><td><strong>Replay to fold up state</strong></td><td>The constructor starts blank (<code>balance = -1</code>, name <code>"DEFAULT NAME"</code>) and loops <code>apply(event)</code> over every event <em>in order</em>. Each event nudges state. A left-fold: <em>state = replay of all past events</em>.</td></tr>
+<tr><td class="mono">6</td><td><strong>Return the live object</strong></td><td>The result is the same <code>PlayerAccount</code> you'd have if you'd run those commands live. No new events are enqueued during replay — <code>apply()</code> only changes fields, whereas live commands (<code>deposit()</code>, <code>bet()</code>) call <code>enqueue()</code>.</td></tr>
+</table>
+
+<h2>3 · The fold — state grows one event at a time</h2>
+<p>Replaying Judy's stream, <code>apply()</code> folds each event into the running state:</p>
+<table>
+<tr><th>Event replayed</th><th>Rule in <code>apply()</code></th><th>Account state after</th></tr>
+<tr><td class="mono">— (start)</td><td>constructor defaults</td><td class="mono">name="DEFAULT NAME", balance=−1</td></tr>
+<tr><td class="mono">PlayerRegistered("Judy")</td><td>set name, balance = 0</td><td class="mono">name="Judy", balance=0</td></tr>
+<tr><td class="mono">MoneyDeposited(10)</td><td>balance += 10</td><td class="mono">name="Judy", balance=10</td></tr>
+<tr><td class="mono">MoneyBet(4)</td><td>balance −= 4</td><td class="mono">name="Judy", balance=6</td></tr>
+<tr><td class="mono">PlayerWonGame(8, …)</td><td>balance += 8</td><td class="mono">name="Judy", balance=14</td></tr>
+</table>
+<div class="callout win">
+<span class="tag">Read it back</span>
+Balance <strong>14</strong> is nowhere on disk — it's the sum of a registration, a deposit, a bet, and a win, recomputed on every <code>find()</code>. Change or replay the events and the balance follows for free. <em>That</em> is event sourcing.
+</div>
+
+<h2>4 · Where <code>find()</code> sits — the save/read mirror</h2>
+<p><code>save()</code> writes events out as rows; <code>find()</code> is its mirror image, reading rows back into events:</p>
+<pre><code>save()   event ─▶ EventDto.from(id, eventId, event) ─▶ JSON row ─▶ append to map
+                  (event.getClass().getSimpleName() = eventType)
+
+find()   JSON row ─▶ EventDto.toDomain() ─▶ event ─▶ apply()-fold ─▶ PlayerAccount
+                  (converters.get(eventType) picks the record class)</code></pre>
+<table>
+<tr><th><code>save()</code> — writing new events</th><th><code>find()</code> — reading them back</th></tr>
+<tr><td>Commands (<code>register</code>/<code>deposit</code>/<code>bet</code>) <code>enqueue()</code> events; <code>save()</code> serialises each fresh event to an <code>EventDto</code> row and appends it.</td><td>Loads the rows, <code>toDomain()</code> each back to an event, then <code>reconstitute()</code> folds them into a rebuilt account.</td></tr>
+<tr><td class="mono">event → EventDto.from() → JSON</td><td class="mono">JSON → EventDto.toDomain() → event</td></tr>
+</table>
+<p class="foot" style="color:var(--muted);font-size:0.92rem">Note the type round-trip: <code>save</code> stores <code>eventType = event.getClass().getSimpleName()</code> (e.g. <code>"MoneyDeposited"</code>); <code>find</code> uses that same string to look the class back up in <code>EventDto</code>'s <code>converters</code> map before Jackson deserialises.</p>
+
+<h2>Primary source</h2>
+<p>The classes themselves — read them together, they're short: <code>application/port/PlayerAccountRepository.java</code> (the <code>find</code>/<code>mapPlayer</code>/<code>save</code> trio), <code>application/port/EventDto.java</code> (<code>from</code>/<code>toDomain</code> + the table-schema comment), and <code>domain/PlayerAccount.java</code> (<code>reconstitute</code> + <code>apply</code>). For the pattern behind it, Martin Fowler, <a href="https://martinfowler.com/eaaDev/EventSourcing.html">Event Sourcing</a>. Background on why we seed test state through the aggregate is in the <a href="../learning-records/2026-07-17-ensemble-place-player-bets.html">17 July learning record</a>.</p>
+
+<p class="ask">Want to trace a real save→find round-trip in the debugger, or see how <a href="../lessons/0004-paying-the-winners.html">Lesson 0004</a>'s payout writes a <code>PlayerWonGame</code> event that this fold later replays? <strong>Ask me.</strong></p>
+
+<div class="footer-nav">
+<span><a href="repo-map.html">◀ Repo Map</a></span>
+<span><a href="../index.html">Course home</a></span>
+<span><a href="../lessons/0004-paying-the-winners.html">Lesson 0004 ▶</a></span>
+</div>
