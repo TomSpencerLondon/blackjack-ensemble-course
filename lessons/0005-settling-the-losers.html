@@ -1,0 +1,171 @@
+<title>Lesson 0005 — Settling the Losers</title>
+<link rel="stylesheet" href="../assets/course.css">
+
+<p class="crumbs">LESSON 0005 · The application layer · Blackjack Ensemble course</p>
+<p class="eyebrow">Lesson 0005 — the next red after “Paying the Winners”</p>
+<h1>Settling the Losers: test the event, not just the balance</h1>
+<p class="subtitle">In 0004 you paid a winner. But your green code calls <code>win()</code> for <em>everyone</em> — including a player who busted. This lesson drives the fix <strong>test-first</strong>, and teaches the subtle bit that trips people up: the account <em>balance</em> is already correct, so it <strong>cannot</strong> drive the change. You have to test the <em>event</em> the account records.</p>
+
+<div class="callout win">
+<span class="tag">The win</span>
+By the end you'll (1) see why a balance assertion goes <span class="green">green</span> even for a loser, (2) write a <strong>RED</strong> test that inspects the <em>emitted event</em>, (3) make it green with a one-line branch, and (4) know exactly <em>when</em> to refactor that branch into the polymorphic <code>settle()</code> design you've been sketching.</p>
+</div>
+
+<div class="callout warn">
+<span class="tag">Where 0004 left you</span>
+Your green <code>execute()</code> loop pays every result the same way — with <code>win()</code>:
+<pre><code>for (PlayerResult result : game.playerResults()) {
+    playerAccountRepository.find(result.playerId())
+            .ifPresent(account -> {
+                account.win(result.payout(), result.outcome());   <span class="comment">// ← called even for a bust!</span>
+                playerAccountRepository.save(account);
+            });
+}</code></pre>
+A busted player has <code>payout() == 0</code>, so this calls <code>win(0, PLAYER_BUSTED)</code>. That's the defect this lesson hunts.
+</div>
+
+<h2>1 · The surprising part — the balance is <em>already</em> right</h2>
+<p>Trace what <code>win(payout)</code> does to a balance of <strong>39</strong> (a player who deposited 50 and bet 11) for each outcome:</p>
+<table>
+<tr><th>Outcome</th><th>payoff ×</th><th>payout</th><th><code>win(payout)</code> → balance</th><th>Correct?</th></tr>
+<tr><td><code>PLAYER_BEATS_DEALER</code></td><td class="mono">2</td><td class="mono">22</td><td class="mono">39 + 22 = 61</td><td class="mono res">✓</td></tr>
+<tr><td><code>PLAYER_PUSHES_DEALER</code></td><td class="mono">1</td><td class="mono">11</td><td class="mono">39 + 11 = 50</td><td class="mono res">✓ (stake back)</td></tr>
+<tr><td><code>PLAYER_BUSTED</code> / <code>PLAYER_LOSES</code></td><td class="mono">0</td><td class="mono">0</td><td class="mono">39 + 0 = 39</td><td class="mono res">✓ (unchanged)</td></tr>
+</table>
+<p>Look hard at that last column: <strong>every balance is already correct.</strong> <code>win(0)</code> adds nothing, and a push's <code>win(bet)</code> just hands the stake back. So a test that asserts on <em>balance</em> will pass no matter what — it cannot force you to write new code.</p>
+<div class="quiz">
+<p class="q">Player deposits 50, bets 11, then <em>busts</em>. What's the final balance — and does the <code>win()</code>-for-everyone code already produce it?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="res mono">39 · yes, already green</p>
+<p class="why">50 − 11 = 39. The buggy code calls <code>win(0, PLAYER_BUSTED)</code>, which adds 0 → still 39. So <code>assertThat(balance).isEqualTo(39)</code> <strong>passes</strong>. A balance test gives you a false “all good”. Whatever's wrong here, it isn't the money.</p>
+</details>
+</div>
+
+<h2>2 · So where's the bug? In the <em>story</em>, not the money</h2>
+<p>Every command on a <code>PlayerAccount</code> records an <strong>event</strong> — that's the source of truth (the balance is just a projection of those events). Calling <code>win(0, PLAYER_BUSTED)</code> records this:</p>
+<pre><code>PlayerWonGame(0, PLAYER_BUSTED)   <span class="comment">// ← the log says this player WON. They busted.</span></code></pre>
+<p>The balance happens to land right, but the <strong>history is a lie</strong>. Anything that reads events — an audit trail, a “why did I lose?” screen, a stats projection — now believes a busted player won a $0 game. That's the real defect, and it lives in the <em>event stream</em>.</p>
+<div class="callout rule">
+<span class="tag">The key idea</span>
+<strong>Test at the level where the defect lives.</strong> When two code paths (<code>win(0)</code> vs <code>lose()</code>) produce the <em>same</em> balance, a balance assertion can't tell them apart. Drop down to the events — that's where they differ.
+</div>
+
+<h2>3 · RED — assert the emitted event <span class="comment">(this is the real red)</span></h2>
+<p>A <code>PlayerAccount</code> exposes its not-yet-persisted events via <code>freshEvents()</code> — that's exactly how <code>PlayerAccountTest.loseEmitsPlayerLostGame</code> checks the domain. At the <em>service</em> level we do the same, one step out: <strong>capture the account handed to <code>save()</code></strong> and inspect its fresh events. We use a Mockito <code>mock</code> of the repository so <code>save()</code> is a no-op — a <em>real</em> <code>save()</code> would clear the fresh events before we could read them.</p>
+<div class="callout task">
+<span class="tag">Task · in <code>application/GameServiceTest.java</code> · expect RED</span>
+<p>Add these imports:</p>
+<pre><code>import com.jitterted.ebp.blackjack.domain.MoneyDeposited;
+import com.jitterted.ebp.blackjack.domain.PlayerLostGame;
+import com.jitterted.ebp.blackjack.domain.PlayerOutcome;
+import com.jitterted.ebp.blackjack.domain.PlayerRegistered;
+import org.mockito.ArgumentCaptor;
+
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;</code></pre>
+<p>Then add the test. A player with a real account <strong>busts</strong>, and we assert the account was told it <em>lost</em>:</p>
+<pre><code>@Test
+void whenPlayerBustsGameOverRecordsPlayerLostGame() {
+    PlayerAccountRepository accounts = mock(PlayerAccountRepository.class);
+    PlayerAccount account = PlayerAccount.reconstitute(
+            PlayerId.of(9),
+            List.of(new PlayerRegistered("loser"), new MoneyDeposited(50)));
+    when(accounts.find(PlayerId.of(9))).thenReturn(Optional.of(account));
+    GameService gameService = GameService.createForTest(new StubShuffler(), accounts);
+
+    <span class="comment">// player: TEN+TEN = 20, then hits FIVE = 25 → PLAYER_BUSTED</span>
+    StubDeck deck = new StubDeck(Rank.TEN, Rank.NINE, Rank.TEN, Rank.SEVEN, Rank.FIVE);
+    gameService.createGame(List.of(PlayerId.of(9)), new Shoe(List.of(deck)));
+    gameService.placePlayerBets(List.of(new PlayerBet(PlayerId.of(9), Bet.of(11))));
+    gameService.initialDeal();
+
+    gameService.playerHits();          <span class="comment">// 25 → bust, game over</span>
+
+    ArgumentCaptor&lt;PlayerAccount&gt; captor = ArgumentCaptor.forClass(PlayerAccount.class);
+    verify(accounts, atLeastOnce()).save(captor.capture());
+    assertThat(captor.getValue().freshEvents())
+            .contains(new PlayerLostGame(PlayerOutcome.PLAYER_BUSTED));
+}</code></pre>
+<p><em>(Why <code>atLeastOnce()</code>: <code>save()</code> is called twice — once in <code>placePlayerBets</code>, once at settlement — with the <strong>same</strong> account object, so <code>captor.getValue()</code> (the last capture) is the one we want.)</em></p>
+<p><strong>Predict, then run</strong> just this test (<kbd>⌃⇧R</kbd>). What event will the captured account actually hold?</p>
+<details class="answer"><summary>reveal the red bar</summary>
+<p class="res mono">Expecting … to contain: PlayerLostGame[…] but could not find: … had PlayerWonGame(0, PLAYER_BUSTED)</p>
+<p class="why">The win-only code recorded <code>PlayerWonGame(0, PLAYER_BUSTED)</code>, so the <code>contains(PlayerLostGame…)</code> fails. <strong>This is the correct red</strong> — and notice a <em>balance</em> assertion here would have been green. The event is what exposes the bug.</p>
+</details>
+</div>
+
+<h2>4 · GREEN — one branch: pay winners, record losers</h2>
+<p>Make it pass with the smallest change. Split the loop body on whether there's a payout:</p>
+<pre><code>for (PlayerResult result : game.playerResults()) {
+    playerAccountRepository.find(result.playerId())
+            .ifPresent(account -> {
+                if (result.payout() &gt; 0) {
+                    account.win(result.payout(), result.outcome());
+                } else {
+                    account.lose(result.outcome());          <span class="comment">// ← records PlayerLostGame</span>
+                }
+                playerAccountRepository.save(account);
+            });
+}</code></pre>
+<p>Run → <span class="green">green</span>. The 0004 winner test still passes (<code>payout &gt; 0</code> → <code>win</code>); the new bust test now records <code>PlayerLostGame</code>. <em>Two tests, two branches, and you only wrote the branch a failing test demanded.</em></p>
+
+<h2>5 · The next red — a push is <em>not</em> a win</h2>
+<p>Before you celebrate, look at the middle row of that first table again. A <strong>push</strong> has <code>payout() == 11 &gt; 0</code>, so your new branch sends it to <code>win()</code> — recording <code>PlayerWonGame(11, PLAYER_PUSHES_DEALER)</code>. The balance is right, but the story's wrong <em>again</em>: a tie is being logged as a win.</p>
+<div class="quiz">
+<p class="q">You add a test: player <em>pushes</em>, assert the account records a <code>PlayerPushed</code> event. Why does the two-arm branch fail it — and what does fixing it do to the <code>if</code>?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="why">A push takes the <code>payout &gt; 0</code> arm and records <code>PlayerWonGame</code>, not <code>PlayerPushed</code> → red. To fix it you'd add a <code>PlayerPushed</code> event and a <code>PlayerAccount.push(...)</code> command, then grow the branch to <strong>three</strong> arms: <code>payout &gt; bet</code> → win, <code>== bet</code> → push, <code>else</code> → lose. Three arms keyed on outcome, sitting in the application layer. <em>That</em> is the smell that earns the refactor below.</p>
+</details>
+</div>
+
+<h2>6 · REFACTOR — Replace Conditional with Polymorphism <span class="comment">(the settle() design)</span></h2>
+<p>This is the object-oriented move you asked about. <strong>Under green</strong>, push the growing conditional down into result <em>types</em> that each know how to settle themselves. Make <code>PlayerResult</code> a sealed interface:</p>
+<pre><code>public sealed interface PlayerResult permits WinResult, PushResult, LoseResult {
+    PlayerId playerId();
+    void settle(PlayerAccount account);
+}</code></pre>
+<p>and the service loses its branch entirely — it just tells the result to settle:</p>
+<pre><code>for (PlayerResult result : game.playerResults()) {
+    playerAccountRepository.find(result.playerId())
+            .ifPresent(account -> {
+                result.settle(account);            <span class="comment">// Win/Push/Lose decides how</span>
+                playerAccountRepository.save(account);
+            });
+}</code></pre>
+<p>Each type carries its own settlement:</p>
+<pre><code>WinResult.settle(a)  → a.win(payout, outcome);
+PushResult.settle(a) → a.push(bet, outcome);
+LoseResult.settle(a) → a.lose(outcome);</code></pre>
+<div class="callout warn">
+<span class="tag">Three things to keep straight</span>
+<ul>
+<li><strong>It's single dispatch, not quite “double dispatch.”</strong> <code>result.settle(account)</code> dispatches on the <em>result</em> type only — <code>PlayerAccount</code> is one concrete type. It's the same instinct that powers Smalltalk double dispatch, but one bounce here. It becomes <em>true</em> double dispatch only if the account side also varies (e.g. a <code>HouseAccount</code>). Don't build that until you need it.</li>
+<li><strong>Class = policy, enum = data.</strong> Keep <code>PlayerOutcome</code> as the payoff multiplier and the description (busted vs out-scored). Let the <em>class</em> (<code>WinResult</code>/…) carry <em>what to do</em>. Don't model the same taxonomy twice and let them drift.</li>
+<li><strong>One conditional survives — at construction.</strong> Something must map an outcome to <code>WinResult</code>/<code>PushResult</code>/<code>LoseResult</code> (a factory). That's fine: the point of Replace-Conditional-with-Polymorphism is to move the <code>if</code> to a <em>single creation site</em> so every <em>use</em> site is branch-free.</li>
+</ul>
+</div>
+<div class="callout rule">
+<span class="tag">When to do this — not before</span>
+Introduce <code>settle()</code> <strong>after</strong> you have the third behaviour (the push event), or the moment the same <code>switch (outcome)</code> shows up in a <em>second</em> file (settlement + event choice + UI rendering). One conditional in one place doesn't yet earn a class hierarchy. Refactor under green, with the tests from steps 3–5 as your safety net.
+</div>
+
+<h2>7 · The TDD steps, in order</h2>
+<table>
+<tr><th>#</th><th>Step</th><th>What you do</th></tr>
+<tr><td class="mono">1</td><td class="red">RED</td><td>Write <code>whenPlayerBustsGameOverRecordsPlayerLostGame</code>. Assert on the <em>event</em> (§3). Run it → it holds <code>PlayerWonGame</code>.</td></tr>
+<tr><td class="mono">2</td><td class="green">GREEN</td><td>Add the <code>if (payout &gt; 0) win else lose</code> branch (§4). Run the test, then the full suite → all green.</td></tr>
+<tr><td class="mono">3</td><td class="red">RED</td><td><em>(optional, next session)</em> Write the push test. Add a <code>PlayerPushed</code> event + <code>PlayerAccount.push(...)</code>. Grow the branch to three arms.</td></tr>
+<tr><td class="mono">4</td><td>REFACTOR</td><td>Under green, extract the sealed <code>PlayerResult</code> + <code>settle()</code> (§6). Delete the branch from <code>GameService</code>. Run → still green.</td></tr>
+</table>
+
+<h2>Primary source</h2>
+<p>The refactor is Martin Fowler, <em>Refactoring</em> — “Replace Conditional with Polymorphism”. The red→green→refactor rhythm and driving one case at a time is Kent Beck, <em>Test-Driven Development: By Example</em> (triangulation). Why <code>win()</code>/<code>lose()</code> <em>record events</em> rather than mutate is in your <a href="../learning-records/2026-07-17-ensemble-place-player-bets.md">event-sourced aggregate learning record</a>. Money-in/money-out modelling from Ted Young's ensemble: <a href="https://tedyoung.me/">tedyoung.me</a>.</p>
+
+<p class="ask">Want to rehearse the push red before you build it, or pair on turning the three-arm branch into <code>settle()</code> step by step? <strong>Ask me</strong> — we'll predict the events together first, then write them.</p>
+
+<div class="footer-nav">
+<span><a href="0004-paying-the-winners.html">◀ 0004 · Paying the Winners</a></span>
+<span><a href="../reference/repo-map.html">Repo Map</a></span>
+<span><a href="../index.html">Course home</a></span>
+</div>

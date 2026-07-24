@@ -34,16 +34,18 @@ Open the project with JDK 25, run the suite, meet the hexagonal architecture and
 <code>StubDeck</code>, <code>StubDeckBuilder</code>, <code>GameBuilder</code>, custom AssertJ, readable names — why this code is easy to test.</li>
 <li><span class="num">0004</span> · <a class="t" href="lessons/0004-paying-the-winners.html">Paying the Winners</a> <span class="badge">ready</span><br>
 A genuine RED-first cycle: wire the game-over payout into <code>PlayerAccount</code> in <code>GameService.execute()</code> — the exact seam tonight's ensemble picks up.</li>
+<li><span class="num">0005</span> · <a class="t" href="lessons/0005-settling-the-losers.html">Settling the Losers</a> <span class="badge">ready</span><br>
+Why the balance is already right for losers and pushes — so you must test the <em>event</em>. Drive the <code>win</code>/<code>lose</code> branch red-first, then learn when to refactor it into a polymorphic <code>settle()</code>.</li>
 </ul>
 
 <ul class="lesson-list soon">
-<li><span class="num">0005</span> · <span class="t">Event Sourcing: PlayerAccount</span> <span class="badge">planned</span><br>
+<li><span class="num">0006</span> · <span class="t">Event Sourcing: PlayerAccount</span> <span class="badge">planned</span><br>
 <code>EventSourcedAggregate</code>, the sealed <code>PlayerAccountEvent</code> hierarchy, <code>apply()</code> with record patterns, and <code>reconstitute()</code>.</li>
-<li><span class="num">0006</span> · <span class="t">The Application Layer &amp; Ports</span> <span class="badge">planned</span><br>
+<li><span class="num">0007</span> · <span class="t">The Application Layer &amp; Ports</span> <span class="badge">planned</span><br>
 <code>GameService</code> as a use-case orchestrator; ports, spies, and the <code>createForTest</code> seams.</li>
-<li><span class="num">0007</span> · <span class="t">The Web Adapter</span> <span class="badge">planned</span><br>
+<li><span class="num">0008</span> · <span class="t">The Web Adapter</span> <span class="badge">planned</span><br>
 Spring MVC controllers, Thymeleaf views, and <code>MockMvc</code> tests — the outer skin.</li>
-<li><span class="num">0008</span> · <span class="t">Capstone — Implement “insufficient balance throws”</span> <span class="badge">capstone</span><br>
+<li><span class="num">0009</span> · <span class="t">Capstone — Implement “insufficient balance throws”</span> <span class="badge">capstone</span><br>
 Turn the ensemble's real red test green, test-first. We'll untangle the <code>PlayerId</code> / exception-type puzzle together — the exact work you'll pair on.</li>
 </ul>
 
