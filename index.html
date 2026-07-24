@@ -30,11 +30,11 @@ Open the project with JDK 25, run the suite, meet the hexagonal architecture and
 <code>Card</code>, <code>Rank</code>, and the soft-ace logic of <code>Hand.value()</code>. Write your first domain tests.</li>
 <li><span class="num">0003</span> · <a class="t" href="lessons/0003-testability-patterns.html">Testability Patterns</a> <span class="badge">ready</span><br>
 <code>StubDeck</code>, <code>StubDeckBuilder</code>, <code>GameBuilder</code>, custom AssertJ, readable names — why this code is easy to test.</li>
+<li><span class="num">0004</span> · <a class="t" href="lessons/0004-paying-the-winners.html">Paying the Winners</a> <span class="badge">ready</span><br>
+A genuine RED-first cycle: wire the game-over payout into <code>PlayerAccount</code> in <code>GameService.execute()</code> — the exact seam tonight's ensemble picks up.</li>
 </ul>
 
 <ul class="lesson-list soon">
-<li><span class="num">0004</span> · <span class="t">A Real Red-Green-Refactor</span> <span class="badge">next</span><br>
-Drive a small feature into the domain test-first, with a genuine refactor step under a green bar.</li>
 <li><span class="num">0005</span> · <span class="t">Event Sourcing: PlayerAccount</span> <span class="badge">planned</span><br>
 <code>EventSourcedAggregate</code>, the sealed <code>PlayerAccountEvent</code> hierarchy, <code>apply()</code> with record patterns, and <code>reconstitute()</code>.</li>
 <li><span class="num">0006</span> · <span class="t">The Application Layer &amp; Ports</span> <span class="badge">planned</span><br>
