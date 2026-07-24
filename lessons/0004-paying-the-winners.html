@@ -110,6 +110,10 @@ void whenPlayerWinsGameOverPaysPayoutIntoPlayerAccount() {
 <p class="why">39, because the bet was deducted but the started loop in <code>execute()</code> <em>finds</em> the account and never credits it. <strong>This is the correct red:</strong> the test fails precisely because the behaviour you're about to build is missing. (Verified — this is the real output.)</p>
 </details>
 </div>
+<div class="callout warn">
+<span class="tag">Saw <code>but was: 50</code> instead of 39? You already half-wired it</span>
+If your loop already <em>credits</em> the account with a first-pass line like <code>account.win(game.currentBets().getFirst().bet().amount(), game.currentPlayerOutcome())</code>, your red reads <code>expected: 61 but was: 50</code>. The maths: <code>50 − 11 (bet) + 11 = 50</code> — you paid the raw <strong>bet</strong> (11) back where <code>win()</code> wants the <strong>payout</strong> (22 = bet × 2 for <code>PLAYER_BEATS_DEALER</code>). It's the same fix as GREEN below: <code>result.payout()</code> asks <code>PlayerOutcome.payoff(bet)</code> for the right multiplier, so the winner is paid 22 and the balance lands on 61. This is <em>not</em> cheating — it's your own domain (<code>PlayerResult</code> / <code>PlayerOutcome</code>) doing the money maths instead of the service guessing at it.
+</div>
 
 <h2>5 · GREEN — iterate <code>playerResults()</code>, not <code>playerIds()</code></h2>
 <p>The started loop uses <code>game.playerIds()</code> — but an id alone can't tell you the payout, so you'd have to <em>re-derive</em> each player's outcome and bet. Don't. <code>game.playerResults()</code> hands you a <code>PlayerResult</code> that already carries <code>playerId()</code>, <code>outcome()</code>, and <code>payout()</code>. Swap the loop, add <code>import ...domain.PlayerResult;</code>, and credit the account:</p>
