@@ -1,0 +1,59 @@
+<title>Blackjack Ensemble — Course Home</title>
+<link rel="stylesheet" href="assets/course.css">
+
+<p class="crumbs">COURSE HOME · blackjack-ensemble-blue · pairing-ready</p>
+<p class="eyebrow">A course to make you ensemble-ready</p>
+<h1>Blackjack Ensemble — Learn the Repo, Practise TDD</h1>
+<p class="subtitle">Short, hands-on lessons that take you from “I just cloned it” to confidently pairing on Ted Young's <code>blackjack-ensemble-blue</code>. Do one lesson, complete its task, say “done”, and I'll test you before we move on.</p>
+
+<div class="callout win">
+<span class="tag">The mission</span>
+When it's your turn at the keyboard in the mob, you know where code lives, why the tests are shaped the way they are, and how to drive a change red→green→refactor without slowing the team down. See <a href="MISSION.md">MISSION.md</a>.
+</div>
+
+<h2>How this works</h2>
+<ul>
+<li>Each <strong>lesson</strong> is one HTML page: a little knowledge, quick recall quizzes, then a hands-on task in the real repo.</li>
+<li>You do the task in IntelliJ, then tell me <strong>“done”</strong>. I read your code, run your tests, and quiz you. We only advance when it's solid.</li>
+<li>Keep the two <strong>reference cards</strong> open while you work.</li>
+</ul>
+<p>
+<a href="reference/intellij-mac-shortcuts.html">▸ IntelliJ macOS Shortcuts</a> &nbsp;·&nbsp;
+<a href="reference/repo-map.html">▸ Repo Map (architecture + glossary)</a>
+</p>
+
+<h2>Lessons — do them in order</h2>
+<ul class="lesson-list">
+<li><span class="num">0001</span> · <a class="t" href="lessons/0001-the-lay-of-the-land.html">The Lay of the Land</a> <span class="badge">ready</span><br>
+Open the project with JDK 25, run the suite, meet the hexagonal architecture and the one deliberate red test.</li>
+<li><span class="num">0002</span> · <a class="t" href="lessons/0002-the-domain-core.html">The Domain Core</a> <span class="badge">ready</span><br>
+<code>Card</code>, <code>Rank</code>, and the soft-ace logic of <code>Hand.value()</code>. Write your first domain tests.</li>
+<li><span class="num">0003</span> · <a class="t" href="lessons/0003-testability-patterns.html">Testability Patterns</a> <span class="badge">ready</span><br>
+<code>StubDeck</code>, <code>StubDeckBuilder</code>, <code>GameBuilder</code>, custom AssertJ, readable names — why this code is easy to test.</li>
+</ul>
+
+<ul class="lesson-list soon">
+<li><span class="num">0004</span> · <span class="t">A Real Red-Green-Refactor</span> <span class="badge">next</span><br>
+Drive a small feature into the domain test-first, with a genuine refactor step under a green bar.</li>
+<li><span class="num">0005</span> · <span class="t">Event Sourcing: PlayerAccount</span> <span class="badge">planned</span><br>
+<code>EventSourcedAggregate</code>, the sealed <code>PlayerAccountEvent</code> hierarchy, <code>apply()</code> with record patterns, and <code>reconstitute()</code>.</li>
+<li><span class="num">0006</span> · <span class="t">The Application Layer &amp; Ports</span> <span class="badge">planned</span><br>
+<code>GameService</code> as a use-case orchestrator; ports, spies, and the <code>createForTest</code> seams.</li>
+<li><span class="num">0007</span> · <span class="t">The Web Adapter</span> <span class="badge">planned</span><br>
+Spring MVC controllers, Thymeleaf views, and <code>MockMvc</code> tests — the outer skin.</li>
+<li><span class="num">0008</span> · <span class="t">Capstone — Implement “insufficient balance throws”</span> <span class="badge">capstone</span><br>
+Turn the ensemble's real red test green, test-first. We'll untangle the <code>PlayerId</code> / exception-type puzzle together — the exact work you'll pair on.</li>
+</ul>
+
+<div class="callout task">
+<span class="tag">Start here</span>
+<p>Open <strong><a href="lessons/0001-the-lay-of-the-land.html">Lesson 0001</a></strong>, do section 6's task, and say <strong>“done”</strong>. I'll generate 0004 once 0001–0003 are under your belt — lessons are written to your pace, one step ahead of where you are.</p>
+</div>
+
+<p class="ask">This course adapts. If a lesson is too easy or too hard, tell me and I'll adjust the next one. Want a lesson on something specific (Spring DI, the CSV repository, ArchUnit)? <strong>Just ask.</strong></p>
+
+<div class="footer-nav">
+<span><a href="reference/intellij-mac-shortcuts.html">Shortcuts</a></span>
+<span><a href="reference/repo-map.html">Repo Map</a></span>
+<span><a href="lessons/0001-the-lay-of-the-land.html">Begin: Lesson 0001 ▶</a></span>
+</div>

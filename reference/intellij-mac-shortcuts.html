@@ -1,0 +1,89 @@
+<title>IntelliJ IDEA — macOS Shortcuts (Blackjack Ensemble)</title>
+<link rel="stylesheet" href="../assets/course.css">
+
+<p class="crumbs">REFERENCE · IntelliJ IDEA · macOS keymap · Blackjack Ensemble course</p>
+<p class="eyebrow">Reference card — print me</p>
+<h1>IntelliJ Shortcuts for Pairing</h1>
+<p class="subtitle">The macOS (default) keymap. Symbols: ⌘ Cmd · ⌥ Option · ⌃ Control · ⇧ Shift · ↩ Enter · ⌫ Delete. Keep this open on your second monitor while you mob.</p>
+
+<div class="callout rule">
+<span class="tag">The escape hatch</span>
+Forget a shortcut? <kbd>⇧⇧</kbd> (Search Everywhere) or <kbd>⌘⇧A</kbd> (Find Action) run <em>any</em> command by name. Learn these two and you can always find the rest.
+</div>
+
+<h2>1 · The TDD loop (learn these first)</h2>
+<table>
+<tr><th>Keys</th><th>Action</th><th>Why it matters here</th></tr>
+<tr><td class="mono">⌃⇧R</td><td>Run test/class under caret</td><td>Run the one test you're driving</td></tr>
+<tr><td class="mono">⌃R</td><td>Re-run last</td><td>The green-refactor heartbeat</td></tr>
+<tr><td class="mono">⌘⇧T</td><td>Jump class ⇄ test</td><td><code>Hand</code> ⇄ <code>HandValueAceTest</code></td></tr>
+<tr><td class="mono">⌥↩</td><td>Intention actions / quick-fix</td><td>Create the missing method/class the failing test names</td></tr>
+<tr><td class="mono">⌘N</td><td>Generate (in editor)</td><td>Constructor, <code>equals</code>/<code>hashCode</code>, override, <strong>Test…</strong></td></tr>
+<tr><td class="mono">⌃⌥O &nbsp;·&nbsp; ⌘⌥L</td><td>Optimize imports · reformat</td><td>Tidy before you hand over</td></tr>
+</table>
+
+<h2>2 · Navigation (a hexagonal codebase has many small files)</h2>
+<table>
+<tr><th>Keys</th><th>Action</th></tr>
+<tr><td class="mono">⇧⇧</td><td><strong>Search Everywhere</strong> — double-tap Shift</td></tr>
+<tr><td class="mono">⌘O</td><td>Go to class (<code>GameService</code>)</td></tr>
+<tr><td class="mono">⌘⇧O</td><td>Go to file (<code>pom.xml</code>, a Thymeleaf <code>.html</code>)</td></tr>
+<tr><td class="mono">⌘⌥O</td><td>Go to symbol (method/field by name)</td></tr>
+<tr><td class="mono">⌘B / ⌘-click</td><td>Go to declaration → then usages</td></tr>
+<tr><td class="mono">⌥⌘B</td><td>Go to implementation (<code>Deck</code> → <code>StubDeck</code>, <code>OrderedDeck</code>)</td></tr>
+<tr><td class="mono">⌘E</td><td>Recent files &nbsp;·&nbsp; <span class="mono">⌃Tab</span> switcher</td></tr>
+<tr><td class="mono">⌘[ / ⌘]</td><td>Navigate back / forward</td></tr>
+<tr><td class="mono">⌘F12</td><td>File structure (methods in this file)</td></tr>
+<tr><td class="mono">⌘1 &nbsp;·&nbsp; ⎋</td><td>Toggle Project window · return to editor</td></tr>
+</table>
+
+<h2>3 · Editing &amp; refactoring</h2>
+<table>
+<tr><th>Keys</th><th>Action</th></tr>
+<tr><td class="mono">⇧F6</td><td>Rename (safe, everywhere)</td></tr>
+<tr><td class="mono">⌥⌘M</td><td>Extract method</td></tr>
+<tr><td class="mono">⌥⌘V / ⌥⌘C / ⌥⌘F / ⌥⌘P</td><td>Extract variable / constant / field / parameter</td></tr>
+<tr><td class="mono">⌃T</td><td>Refactor This… menu</td></tr>
+<tr><td class="mono">⌘D / ⌘⌫</td><td>Duplicate / delete line</td></tr>
+<tr><td class="mono">⌥↑ / ⌥↓</td><td>Extend / shrink selection</td></tr>
+<tr><td class="mono">⌃G</td><td>Add next occurrence (multi-cursor)</td></tr>
+<tr><td class="mono">⌘/ · ⌘⌥/</td><td>Line · block comment</td></tr>
+<tr><td class="mono">F2 / ⇧F2</td><td>Next / previous error</td></tr>
+</table>
+
+<h2>4 · Running &amp; Git (git-handover pairing)</h2>
+<table>
+<tr><th>Keys</th><th>Action</th></tr>
+<tr><td class="mono">⌃⇧R / ⌃⇧D</td><td>Run / Debug class under caret</td></tr>
+<tr><td class="mono">F8 / F7</td><td>Step over / into (debugger)</td></tr>
+<tr><td class="mono">⌘K / ⌘⇧K</td><td>Commit / Push</td></tr>
+<tr><td class="mono">⌘T</td><td>Update project (pull)</td></tr>
+<tr><td class="mono">⌘9</td><td>Git tool window</td></tr>
+<tr><td class="mono">⌃⌃</td><td>Run Anything</td></tr>
+</table>
+
+<div class="callout task">
+<span class="tag">Ensemble handover — your team rotates via git (mob)</span>
+<p>The <code>mob</code> tool is installed. In the repo terminal (⌥F12 opens IntelliJ's terminal):</p>
+<pre><code>mob start 10        <span class="comment"># begin session, 10-min turns; pulls the mob branch</span>
+<span class="comment"># ...you type while the mob directs...</span>
+mob next            <span class="comment"># commit WIP &amp; hand the keyboard to the next person</span>
+mob done            <span class="comment"># squash the mob branch back onto master, ready to commit as one change</span></code></pre>
+<p>Everyone runs <code>mob start</code> to receive the baton; the typist runs <code>mob next</code> when the timer rings. See <a href="https://mob.sh/">mob.sh</a>.</p>
+</div>
+
+<div class="callout warn">
+<span class="tag">Two Mac gotchas</span>
+<p><strong>Mission Control steals ⌃↑/⌃↓/⌃←/⌃→.</strong> If IntelliJ's caret/tab moves don't work, turn them off in <em>System Settings → Keyboard → Keyboard Shortcuts → Mission Control</em>.</p>
+<p><strong>F-keys:</strong> if <kbd>F2</kbd>/<kbd>F7</kbd>/<kbd>F8</kbd> change brightness/volume, add <kbd>fn</kbd>, or tick <em>“Use F1, F2… as standard function keys.”</em></p>
+</div>
+
+<h2>Primary source</h2>
+<p>JetBrains keeps the authoritative, always-current list: <a href="https://www.jetbrains.com/help/idea/mastering-keyboard-shortcuts.html">Mastering keyboard shortcuts</a>, and the printable <a href="https://resources.jetbrains.com/storage/products/intellij-idea/docs/IntelliJIDEA_ReferenceCard.pdf">IntelliJ IDEA Reference Card (PDF)</a>. In-app: <kbd>⌘⇧A</kbd> → “Keymap” shows and lets you rebind anything. Tip: enable <strong>Key Promoter X</strong> (plugin) to learn shortcuts as you click.</p>
+
+<p class="ask">Want me to rebind anything (e.g. a one-key Code&nbsp;With&nbsp;Me or a “run all tests” chord), or export this keymap so the whole ensemble shares it? <strong>Ask me.</strong></p>
+
+<div class="footer-nav">
+<span><a href="../index.html">◀ Course home</a></span>
+<span><a href="repo-map.html">Repo Map ▶</a></span>
+</div>

@@ -1,0 +1,100 @@
+<title>Lesson 0001 — The Lay of the Land</title>
+<link rel="stylesheet" href="../assets/course.css">
+
+<p class="crumbs">LESSON 0001 · Getting oriented · Blackjack Ensemble course</p>
+<p class="eyebrow">Lesson 0001 — Onboarding to the ensemble repo</p>
+<h1>The Lay of the Land</h1>
+<p class="subtitle">Before you can pair with confidence, you need to open the project, run the tests, and know which way the architecture's arrows point. By the end you'll have a green suite (minus one deliberate red test) and a mental map of the codebase.</p>
+
+<div class="callout win">
+<span class="tag">The win</span>
+You'll open <code>blackjack-ensemble-blue</code> in IntelliJ with the right JDK, run all the tests with one shortcut, and correctly explain why the <code>domain</code> package imports nothing from Spring. That's the foundation every later lesson builds on.
+</div>
+
+<h2>1 · Open the project (once)</h2>
+<ol>
+<li>IntelliJ IDEA → <strong>Open</strong> → choose <code>~/Desktop/blackjack-ensemble-blue</code> (the folder with <code>pom.xml</code>). IntelliJ detects Maven and imports it.</li>
+<li>Trust the project when asked. Let the Maven import finish (watch the bottom status bar).</li>
+<li><strong>Set the JDK to 25.</strong> <kbd>⌘;</kbd> (Project Structure) → <em>Project</em> → SDK → <code>temurin-25</code>; Language level → “25”. Also <em>Settings → Build Tools → Maven → Importing/Runner</em> should show a 25 JDK.</li>
+</ol>
+<div class="callout warn">
+<span class="tag">If it won't compile</span>
+“release version 25 not supported” means IntelliJ is using JDK 21. Fix the Project SDK <em>and</em> the Maven Runner JDK to <code>temurin-25</code>. The repo needs 25 because <code>pom.xml</code> sets <code>&lt;java.version&gt;25&lt;/java.version&gt;</code> — see the <a href="../reference/repo-map.html">Repo Map</a>.
+</div>
+
+<h2>2 · Run every test with one shortcut</h2>
+<p>Open <code>HandValueAceTest</code> (<kbd>⌘O</kbd> → type it). Put the caret in the class and press <kbd>⌃⇧R</kbd> — IntelliJ runs it. To run the <em>whole</em> suite, right-click the <code>src/test/java</code> folder → <em>Run 'All Tests'</em>, or use the committed run configs (top-right dropdown): <strong>All Tests</strong>, <strong>I/O-FREE Tests</strong>, <strong>I/O-Dependent &amp; Framework Tests</strong>.</p>
+<p>From the terminal (<kbd>⌥F12</kbd>) the README's way also works:</p>
+<pre><code>./mvnw verify</code></pre>
+
+<h2>3 · Read the result — one test is red on purpose</h2>
+<p>You'll see <strong>~68 passing</strong> and <strong>one failure</strong>:</p>
+<pre><code>GameServiceTest.placeBetsForPlayerAccountWithInsufficientBalanceThrowsException
+  <span class="red">FAILURE</span>: Expecting code to raise a throwable.</code></pre>
+<div class="callout rule">
+<span class="tag">This is a feature, not a bug</span>
+That red test is the ensemble's <strong>work-in-progress</strong> — a failing test left as the starting point for the next session (classic TDD). There's also a <code>@Disabled</code> test right below it (<code>placeBetsReducesPlayerAccountBalance</code>) marking where the work continues. We rebuild toward implementing these in the final lesson. For now: green everywhere else = your setup is correct.
+</div>
+
+<h2>4 · The shape of the codebase</h2>
+<p>This is a <strong>hexagonal (ports &amp; adapters)</strong> app. Four ideas, one arrow:</p>
+<pre><code>  adapters  ──▶  application  ──▶  domain
+ (web,          (GameService,      (Game, Hand, Card,
+  console,       ports)             PlayerAccount, ...)
+  repository)</code></pre>
+<table>
+<tr><th>Layer</th><th>Job</th><th>May depend on</th></tr>
+<tr><td class="mono">domain</td><td>Pure Blackjack rules &amp; state</td><td>nothing (no Spring!)</td></tr>
+<tr><td class="mono">application</td><td>Use cases; drives the domain</td><td>domain</td></tr>
+<tr><td class="mono">adapter.in / out</td><td>Web, console, DB, RNG</td><td>application + domain</td></tr>
+</table>
+<p>Spend two minutes in the <em>Project</em> window (<kbd>⌘1</kbd>) expanding <code>com.jitterted.ebp.blackjack</code>. Notice how <code>domain</code> classes never <code>import org.springframework…</code>. That inward-only arrow is the whole game — full detail on the <a href="../reference/repo-map.html">Repo Map</a>.</p>
+
+<h2>5 · Quick recall — predict, then reveal</h2>
+<div class="quiz">
+<p class="q">a. Which package is allowed to import <code>org.springframework.web</code>?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="res mono">adapter.in.web</p>
+<p class="why">Only adapters touch frameworks. <code>domain</code> and <code>application</code> stay framework-free so they're fast to test.</p>
+</details>
+</div>
+<div class="quiz">
+<p class="q">b. <code>GameService</code> lives in <code>application</code>. May it call a class in <code>domain</code>?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="res mono">Yes</p>
+<p class="why">Arrows point inward: application → domain is allowed. The reverse (domain → application) is forbidden.</p>
+</details>
+</div>
+<div class="quiz">
+<p class="q">c. The failing test in a freshly-cloned repo means my machine is broken. True or false?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="res mono">False</p>
+<p class="why">It's the ensemble's deliberate red WIP test. Every <em>other</em> test passing is the signal your setup is right.</p>
+</details>
+</div>
+
+<h2>6 · Hands-on — prove your setup <span class="comment">(I'll check it live)</span></h2>
+<div class="callout task">
+<span class="tag">Task · in IntelliJ + terminal</span>
+<p><strong>1.</strong> Run the whole suite. Confirm you see exactly <em>one</em> failure (<code>placeBetsForPlayerAccountWithInsufficientBalanceThrowsException</code>) and everything else green.</p>
+<p><strong>2.</strong> Using <kbd>⌘B</kbd> (go to declaration), open <code>Hand</code> from inside <code>HandValueAceTest</code>. Then from <code>Hand</code>, find who calls <code>value()</code> — <kbd>⌥F7</kbd> (Find Usages).</p>
+<p><strong>3.</strong> Open <code>GameService</code> (<kbd>⌘O</kbd>). Look at its constructor parameters — all four are <em>ports</em> (interfaces from <code>application.port</code>). Write down, in one sentence, why the constructor takes interfaces instead of concrete classes.</p>
+<p>Then run this from the repo root and tell me the last line:</p>
+<pre><code>./mvnw -q test -Dtest=WalletTest</code></pre>
+<details class="answer"><summary>reveal expected result</summary>
+<p class="res mono">BUILD SUCCESS</p>
+<p class="why"><code>WalletTest</code> is a pure-domain test with no failing cases — it should pass on its own in well under a second.</p>
+</details>
+<p>Then say <strong>“done”</strong> — I'll quiz you on the four ports and the dependency rule, and we move to the domain core.</p>
+</div>
+
+<h2>Primary source</h2>
+<p>Ted Young's <a href="https://tedyoung.me/">jitterted.com / tedyoung.me</a> and his talks on “Testable by Design.” On hexagonal architecture, the canonical piece is Alistair Cockburn's <a href="https://alistair.cockburn.us/hexagonal-architecture/">Hexagonal Architecture</a>. For IntelliJ + Maven basics: <a href="https://www.jetbrains.com/help/idea/maven-support.html">JetBrains Maven support</a>.</p>
+
+<p class="ask">Import errors, wrong JDK, or the Project window looks different from mine? <strong>Ask me</strong> — I can read your <code>pom.xml</code> and run configs and tell you exactly what to click.</p>
+
+<div class="footer-nav">
+<span><a href="../index.html">◀ Course home</a></span>
+<span><a href="../reference/repo-map.html">Repo Map</a></span>
+<span><a href="0002-the-domain-core.html">Next: 0002 · The Domain Core ▶</a></span>
+</div>

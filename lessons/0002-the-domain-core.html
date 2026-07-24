@@ -1,0 +1,112 @@
+<title>Lesson 0002 — The Domain Core</title>
+<link rel="stylesheet" href="../assets/course.css">
+
+<p class="crumbs">LESSON 0002 · The domain · Blackjack Ensemble course</p>
+<p class="eyebrow">Lesson 0002 — Reading the rules in code</p>
+<h1>The Domain Core: Card, Rank &amp; Hand</h1>
+<p class="subtitle">The domain is where Blackjack's rules live as plain Java — no Spring, no HTTP. You'll read the three classes at its heart and understand the one genuinely clever method: <code>Hand.value()</code> and its soft-ace trick.</p>
+
+<div class="callout win">
+<span class="tag">The win</span>
+You'll be able to compute any hand's value in your head the way the code does, explain why an Ace is sometimes 11 and sometimes 1, and read <code>Hand</code> fluently — the class every game rule leans on.
+</div>
+
+<h2>1 · <code>Rank</code> — an enum that knows its value</h2>
+<p><code>Rank</code> pairs each card rank with its point value and display string:</p>
+<pre><code>public enum Rank {
+    ACE(1, "A"),  TWO(2, "2"),  ... TEN(10, "10"),
+    JACK(10, "J"), QUEEN(10, "Q"), KING(10, "K");
+
+    public int value()   { return value; }
+    public String display() { return display; }
+}</code></pre>
+<p>Two things to notice: face cards (J/Q/K) all carry <strong>value 10</strong>, and <code>ACE</code> carries a <strong>base value of 1</strong>. The “sometimes 11” logic is <em>not</em> here — it lives in <code>Hand</code>, because whether an Ace counts as 11 depends on the whole hand.</p>
+
+<h2>2 · <code>Card</code> — rank + suit, and a mutable face</h2>
+<pre><code>public class Card {
+    private final Suit suit;
+    private final Rank rank;
+    private Face face = Face.UP;      <span class="comment">// UP or DOWN — the dealer's hole card is DOWN</span>
+
+    public int rankValue() { return rank.value(); }
+    public void flip() { ... }        <span class="comment">// toggles UP/DOWN</span>
+}</code></pre>
+<p><code>suit</code> and <code>rank</code> are <code>final</code> (a card's identity never changes), but <code>face</code> is mutable because a card gets turned over during play. <code>Card</code> also defines <code>equals</code>/<code>hashCode</code> on <em>suit + rank</em> — so two <code>ACE of HEARTS</code> are equal regardless of face. That's why tests can write <code>new Card(Suit.HEARTS, Rank.ACE)</code> and compare.</p>
+
+<h2>3 · <code>Hand.value()</code> — the soft-ace trick</h2>
+<p>Here is the actual method, verbatim:</p>
+<pre><code>public int value() {
+    int handValue = cards.stream()
+                         .mapToInt(Card::rankValue)   <span class="comment">// Ace counts as 1 here</span>
+                         .sum();
+
+    boolean hasAce = cards.stream()
+                          .anyMatch(card -> card.rank() == Rank.ACE);
+
+    <span class="comment">// promote ONE ace from 1 → 11 (add 10) only if it won't bust</span>
+    if (hasAce &amp;&amp; handValue &lt;= 11) {
+        handValue += 10;
+    }
+    return handValue;
+}</code></pre>
+<div class="callout rule">
+<span class="tag">The key idea</span>
+Sum every card with the Ace as <strong>1</strong>. Then, if there's an Ace <em>and</em> the total is ≤ 11, add 10 (promoting one Ace to 11). One Ace can be “soft” (11); a second Ace must stay 1, because 11+11 = 22 &gt; 11 so the <code>if</code> won't fire twice. Elegant, and driven entirely by tests like <code>HandValueAceTest</code>.
+</div>
+<p>Two neighbours built on <code>value()</code>:</p>
+<pre><code>boolean isBusted()      { return value() &gt; 21; }
+boolean hasBlackjack()  { return valueEquals(21) &amp;&amp; cards.size() == 2; }</code></pre>
+<p>Blackjack is 21 <em>in exactly two cards</em> — matching the Glossary's “natural.”</p>
+
+<h2>4 · Quick recall — compute like the code</h2>
+<div class="quiz">
+<p class="q">a. Hand = Ace + 5. What does <code>value()</code> return?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="res mono">16</p>
+<p class="why">Sum with Ace=1 → 6. Has an Ace and 6 ≤ 11, so +10 → 16 (the “soft 16”).</p>
+</details>
+</div>
+<div class="quiz">
+<p class="q">b. Hand = Ace + 8 + 3. What does <code>value()</code> return?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="res mono">12</p>
+<p class="why">Sum with Ace=1 → 12. Has an Ace but 12 &gt; 11, so no +10. The Ace stays 1. (This is exactly a case in <code>HandValueAceTest</code>.)</p>
+</details>
+</div>
+<div class="quiz">
+<p class="q">c. Hand = Ace + King. Is it Blackjack?</p>
+<details class="answer"><summary>reveal</summary>
+<p class="res mono">Yes</p>
+<p class="why">King=10, Ace promotes to 11 → 21, and there are exactly 2 cards. <code>hasBlackjack()</code> is true.</p>
+</details>
+</div>
+
+<h2>5 · Hands-on — write a failing test first <span class="comment">(I'll check it live)</span></h2>
+<div class="callout task">
+<span class="tag">Task · in <code>HandValueAceTest</code> · red → green (green expected!)</span>
+<p>You'll practise the TDD <em>rhythm</em> on code that already works — so the “green” confirms your understanding. Open <code>src/test/java/…/domain/HandValueAceTest.java</code>. Add one test that pins down the <strong>two-ace</strong> case:</p>
+<pre><code>@Test
+void handWithTwoAcesCountsOneAsElevenAndOneAsOne() {
+    Hand hand = createHand(Rank.ACE, Rank.ACE);
+    assertThat(hand.valueEquals(11 + 1))   <span class="comment">// predict: what number?</span>
+            .isTrue();
+}</code></pre>
+<p><strong>Predict first:</strong> what does Ace + Ace evaluate to? Write your guess down, then run just this test with <kbd>⌃⇧R</kbd>.</p>
+<details class="answer"><summary>reveal the value &amp; why</summary>
+<p class="res mono">12</p>
+<p class="why">Sum with both Aces = 1 → 2. Has an Ace and 2 ≤ 11, so +10 once → 12. The <code>if</code> fires a single time, so only one Ace becomes 11. Your assertion <code>11 + 1</code> = 12 should go <span class="green">green</span>.</p>
+</details>
+<p><strong>Then push further, test-first:</strong> add <code>handWithThreeCardsAceSevenSevenStaysHard</code> (Ace + 7 + 7). Predict the value, write the assertion, watch it pass. Notice you're using tests to <em>document</em> the rule.</p>
+<p>Say <strong>“done”</strong> and I'll read your two new tests, run <code>HandValueAceTest</code>, and check your predictions against the real output — then we go to the testability patterns that make the <em>rest</em> of the game this easy to test.</p>
+</div>
+
+<h2>Primary source</h2>
+<p>The rules themselves: the repo's own <a href="#">Glossary.md</a> and <code>README.md</code>. For the “tell, don't ask” style <code>Hand</code> embodies (methods like <code>beats</code>, <code>pushes</code>, <code>isBusted</code> instead of exposing data), see Ted Young's writing at <a href="https://tedyoung.me/">tedyoung.me</a>. Java enums: <a href="https://dev.java/learn/language-basics/enums/">dev.java — Enums</a>.</p>
+
+<p class="ask">Want to see how <code>Hand</code> is used inside <code>Game</code> (dealer vs player, <code>beats</code>/<code>pushes</code>)? <strong>Ask me</strong> — I'll trace a full round through the domain.</p>
+
+<div class="footer-nav">
+<span><a href="0001-the-lay-of-the-land.html">◀ 0001 · The Lay of the Land</a></span>
+<span><a href="../reference/repo-map.html">Repo Map</a></span>
+<span><a href="0003-testability-patterns.html">Next: 0003 · Testability Patterns ▶</a></span>
+</div>

@@ -1,0 +1,185 @@
+/* course.css — shared styles for the Blackjack Ensemble course.
+   Same Tufte-inspired family as the Pharo course: warm paper, serif prose,
+   generous margins, prints cleanly. Casino-felt green accent to distinguish it.
+   Self-contained: system fonts only, no external requests. */
+
+:root {
+  --paper:    #fdfaf3;
+  --ink:      #2b2825;
+  --muted:    #6b655c;
+  --rule:     #e2dccd;
+  --accent:   #0b6b3a;      /* casino felt green */
+  --accent-2: #1c5d78;      /* link teal */
+  --card-red: #b0201a;      /* hearts/diamonds red, used sparingly */
+  --code-bg:  #f4efe2;
+  --good:     #2f6b34;
+  --code-font: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --prose-font: "Palatino Linotype", Palatino, "Iowan Old Style", Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 18px; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--prose-font);
+  line-height: 1.55;
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 6rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ---- masthead ---- */
+.eyebrow {
+  font-family: var(--code-font);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.4rem;
+}
+h1 {
+  font-weight: 600;
+  font-size: 2.1rem;
+  line-height: 1.1;
+  margin: 0 0 0.6rem;
+}
+.subtitle { color: var(--muted); font-style: italic; margin: 0 0 2rem; font-size: 1.05rem; }
+
+h2 {
+  font-weight: 600;
+  font-size: 1.3rem;
+  margin: 2.6rem 0 0.6rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+h3 { font-weight: 600; font-size: 1.05rem; margin: 1.6rem 0 0.4rem; }
+
+p, li { font-size: 1rem; }
+a { color: var(--accent-2); text-decoration: none; border-bottom: 1px solid rgba(28,93,120,0.3); }
+a:hover { border-bottom-color: var(--accent-2); }
+
+/* ---- code ---- */
+code {
+  font-family: var(--code-font);
+  font-size: 0.86em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; font-size: 0.82rem; }
+.comment { color: var(--muted); font-style: italic; }
+.res { color: var(--good); font-weight: 600; }  /* an evaluation / test result */
+.red { color: var(--card-red); font-weight: 600; }
+.green { color: var(--good); font-weight: 600; }
+
+/* ---- callouts ---- */
+.callout {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.9rem 1.2rem;
+  margin: 1.4rem 0;
+  background: #fffdf7;
+}
+.callout.win   { border-left: 4px solid var(--good); }
+.callout.rule  { border-left: 4px solid var(--accent); }
+.callout.task  { border-left: 4px solid var(--accent-2); background: #f6fbfd; }
+.callout.warn  { border-left: 4px solid var(--card-red); background: #fdf6f5; }
+.callout h3 { margin-top: 0; }
+.callout .tag {
+  font-family: var(--code-font); font-size: 0.68rem; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--muted); display:block; margin-bottom: 0.3rem;
+}
+
+/* ---- quiz (details/summary, no JS needed) ---- */
+.quiz { margin: 1.1rem 0; }
+.quiz .q { font-weight: 600; margin-bottom: 0.5rem; }
+.options { list-style: none; padding: 0; margin: 0 0 0.6rem; }
+.options li {
+  font-family: var(--code-font); font-size: 0.85rem;
+  padding: 0.35rem 0.7rem; margin: 0.3rem 0;
+  border: 1px solid var(--rule); border-radius: 4px; background: #fff;
+}
+details.answer {
+  border: 1px dashed var(--rule); border-radius: 4px;
+  padding: 0.2rem 0.8rem; background: #fffdf7;
+}
+details.answer summary {
+  cursor: pointer; font-size: 0.85rem; color: var(--accent);
+  font-family: var(--code-font); padding: 0.3rem 0;
+}
+details.answer[open] { padding-bottom: 0.7rem; }
+details.answer .why { margin-top: 0.4rem; font-size: 0.95rem; }
+
+/* ---- misc ---- */
+kbd {
+  font-family: var(--code-font); font-size: 0.75rem;
+  background: #fff; border: 1px solid var(--rule);
+  border-bottom-width: 2px; border-radius: 4px; padding: 0.05em 0.4em;
+}
+hr { border: none; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
+.crumbs { font-family: var(--code-font); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.06em; }
+.footer-nav {
+  margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+  font-family: var(--code-font); font-size: 0.8rem; display:flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+}
+.ask {
+  margin-top: 2.5rem; font-style: italic; color: var(--muted);
+  border-top: 1px dotted var(--rule); padding-top: 1rem;
+}
+table { border-collapse: collapse; width: 100%; margin: 1.2rem 0; font-size: 0.92rem; }
+th, td { text-align: left; padding: 0.45rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--code-font); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+td.mono, .mono { font-family: var(--code-font); font-size: 0.85rem; }
+
+/* course-home lesson list */
+.lesson-list { list-style: none; padding: 0; }
+.lesson-list li {
+  border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+  border-radius: 5px; padding: 0.7rem 1rem; margin: 0.6rem 0; background: #fffdf7;
+}
+.lesson-list .num { font-family: var(--code-font); font-size: 0.72rem; color: var(--muted); }
+.lesson-list .t { font-weight: 600; }
+.lesson-list.soon li { border-left-color: var(--rule); opacity: 0.75; }
+.badge {
+  font-family: var(--code-font); font-size: 0.62rem; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 0.1em 0.5em; border-radius: 999px;
+  border: 1px solid var(--rule); color: var(--muted); margin-left: 0.4rem;
+}
+
+@media (max-width: 480px) { html { font-size: 16px; } body { padding: 2rem 1rem 4rem; } }
+
+@media print {
+  :root { --paper: #fff; }
+  body { max-width: 100%; padding: 0; }
+  details.answer { border: none; }
+  details.answer summary { display: none; }
+  details.answer[open], details.answer { padding: 0; }
+  details.answer > *:not(summary) { display: block !important; }
+  .footer-nav, .ask { page-break-inside: avoid; }
+  a { color: var(--ink); border: none; }
+}
+
+/* dark mode for on-screen reading; print always light */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:#1c1a17; --ink:#e9e2d4; --muted:#a49c8d; --rule:#3a352d;
+    --code-bg:#26231d; --accent:#4bbf82; --accent-2:#6db8d6; --card-red:#e0736c;
+  }
+  .callout, details.answer, .options li, kbd, .lesson-list li { background:#221f1a; }
+  .callout.task { background:#1d2225; }
+  .callout.warn { background:#241d1c; }
+}

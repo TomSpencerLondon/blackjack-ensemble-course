@@ -1,0 +1,79 @@
+<title>Repo Map — blackjack-ensemble-blue</title>
+<link rel="stylesheet" href="../assets/course.css">
+
+<p class="crumbs">REFERENCE · Architecture &amp; package map · Blackjack Ensemble course</p>
+<p class="eyebrow">Reference card — print me</p>
+<h1>Repo Map</h1>
+<p class="subtitle">One page that tells you <em>where everything lives</em> and <em>which way the arrows point</em>. Ted's <code>blackjack-ensemble-blue</code> is a hexagonal (ports &amp; adapters) Spring Boot app. Keep this next to the shortcut card.</p>
+
+<h2>1 · The dependency rule (memorise the arrow)</h2>
+<pre><code>  adapters  ──▶  application  ──▶  domain
+ (in / out)      (use cases,     (pure rules,
+                  ports)          no framework)
+
+        domain depends on NOTHING.
+        arrows only ever point inward.</code></pre>
+<div class="callout rule">
+<span class="tag">Why blue teams care</span>
+The <strong>domain</strong> (Blackjack rules) knows nothing about Spring, HTTP, or the console. That's what makes it fast and trivial to unit-test — the whole point of the “Make Code More Testable” class. Adapters are the replaceable skin; the domain is the protected core.
+</div>
+
+<h2>2 · Package tour</h2>
+<table>
+<tr><th>Package</th><th>Role</th><th>Landmark classes</th></tr>
+<tr><td class="mono">domain</td><td>Pure game rules &amp; state. No imports of Spring/web.</td><td class="mono">Game, Hand, Card, Rank, Deck, Shoe, PlayerAccount, Wallet, Bet</td></tr>
+<tr><td class="mono">application</td><td>Use-case orchestration (“services”). Drives the domain.</td><td class="mono">GameService, GameCommand</td></tr>
+<tr><td class="mono">application.port</td><td>Interfaces the app needs — the “sockets”.</td><td class="mono">GameRepository, GameMonitor, Shuffler, PlayerAccountRepository</td></tr>
+<tr><td class="mono">adapter.in.web</td><td>Driving adapter: Spring MVC controllers + view models.</td><td class="mono">BlackjackController, WelcomeController</td></tr>
+<tr><td class="mono">adapter.in.console</td><td>Driving adapter: text UI.</td><td class="mono">ConsoleGame, ConsoleCard, ConsoleHand</td></tr>
+<tr><td class="mono">adapter.out.repository</td><td>Driven adapter: persistence (CSV, in-memory event store).</td><td class="mono">CsvGameRepository, *Dto</td></tr>
+<tr><td class="mono">adapter.out.*</td><td>Driven adapters: shuffler, game monitor.</td><td class="mono">RandomShuffler, HttpGameMonitor</td></tr>
+<tr><td class="mono">(root)</td><td>Spring Boot startup &amp; console entry point.</td><td class="mono">BlackjackGameApplication, Blackjack</td></tr>
+</table>
+
+<div class="callout warn">
+<span class="tag">Honest note</span>
+<code>HexArchTest</code> exists but is <strong>entirely commented out</strong> — the layering rules are documented there as intent, not enforced by CI right now. Re-enabling it could be a great ensemble task. Until then, the arrow is a discipline the team keeps by hand.
+</div>
+
+<h2>3 · “in” vs “out” adapters</h2>
+<table>
+<tr><th>Driving (in)</th><th>Driven (out)</th></tr>
+<tr><td>Calls <em>into</em> the app. The web/console <strong>uses</strong> <code>GameService</code>.</td><td>The app calls <em>out</em> through a port; an adapter <strong>implements</strong> it (DB, HTTP, RNG).</td></tr>
+<tr><td class="mono">adapter.in.web → application</td><td class="mono">application.port ← adapter.out.repository</td></tr>
+</table>
+
+<h2>4 · Two ways state is held (know the difference)</h2>
+<table>
+<tr><th>Style</th><th>Class</th><th>How state changes</th></tr>
+<tr><td>Plain object</td><td class="mono">Wallet</td><td>Mutates a field directly (<code>balance += amount</code>).</td></tr>
+<tr><td><strong>Event-sourced</strong></td><td class="mono">PlayerAccount</td><td>Records an <em>event</em> (<code>MoneyDeposited</code>), then <code>apply()</code> folds it into state. Rebuilt by replaying events via <code>reconstitute()</code>.</td></tr>
+</table>
+<p>The event vocabulary is a Java <code>sealed interface PlayerAccountEvent</code> permitting <code>PlayerRegistered, MoneyDeposited, MoneyBet, PlayerWonGame, PlayerLostGame</code>. <code>apply()</code> uses a <strong>switch with record patterns</strong> (a preview feature — that's the <code>--enable-preview</code> flag in <code>pom.xml</code>).</p>
+
+<h2>5 · Ubiquitous language (from <code>Glossary.md</code>)</h2>
+<table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td>Blackjack / Natural</td><td>Ace + 10-value card in exactly 2 cards → immediate win (unless dealer also has it → Push).</td></tr>
+<tr><td>Standing player</td><td>Didn't bust, no Blackjack; waits for the dealer to resolve the outcome.</td></tr>
+<tr><td>Busted player</td><td>Hit and went over 21 → lost immediately.</td></tr>
+<tr><td>Turn</td><td>A decision point: Hit or Stand. <em>Turn complete</em> = standing, bust, or Blackjack.</td></tr>
+<tr><td>Push</td><td>A tie with the dealer.</td></tr>
+</table>
+
+<h2>6 · Build &amp; run (command line — as the README insists)</h2>
+<pre><code>./mvnw verify                         <span class="comment"># compile + run all tests (needs JDK 25)</span>
+./mvnw package                        <span class="comment"># build the jar</span>
+java -jar target/blackjack-1.0.0.jar  <span class="comment"># play in a real terminal</span></code></pre>
+<div class="callout rule">
+<span class="tag">JDK 25, not 21</span>
+The README says “Java 21+”, but <code>pom.xml</code> sets <code>&lt;java.version&gt;25&lt;/java.version&gt;</code>, so Spring compiles with <code>--release 25</code>. Your machine's terminal and IntelliJ Project SDK must both be <strong>Temurin 25</strong> (already installed at <code>~/.jdks/temurin-25</code>).
+</div>
+
+<p class="ask">Confused about where a class lives or which layer may call it? <strong>Ask me</strong> — I'll trace the call path in the real code.</p>
+
+<div class="footer-nav">
+<span><a href="intellij-mac-shortcuts.html">◀ Shortcuts</a></span>
+<span><a href="../index.html">Course home</a></span>
+<span><a href="../lessons/0001-the-lay-of-the-land.html">Lesson 0001 ▶</a></span>
+</div>

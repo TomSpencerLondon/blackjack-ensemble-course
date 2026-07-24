@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Node / wrangler (deploy tooling)
+node_modules/
+.wrangler/
+
+# Cloudflare Pages local build
+dist/
