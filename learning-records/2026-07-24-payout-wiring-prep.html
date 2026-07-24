@@ -53,10 +53,16 @@ assertThat(accounts.find(PlayerId.of(9))).get().extracting(PlayerAccount::balanc
   <li>**<code>PlayerOutcome</code> payoff is a multiplier on the <em>total returned</em>, not profit**, and the bet is already deducted at bet-time: BEATS/DEALER_BUSTED ×2, BLACKJACK ×2.5, PUSH ×1, BUSTED/LOSES ×0.</li>
   <li><strong><code>win()</code> vs <code>lose()</code></strong>: <code>win(payout, outcome)</code> enqueues <code>PlayerWonGame</code> (balance += payout); <code>lose(outcome)</code> enqueues <code>PlayerLostGame</code> (balance unchanged — money already gone).</li>
 </ul>
+<h2>Correction (2026-07-24, after Tom reviewed the lesson)</h2>
+<p>Two things the first cut of Lesson 0004 got wrong, now fixed:</p>
+<ol>
+  <li><strong><code>PlayerAccount.win()</code> is already implemented AND unit-tested</strong> — <code>PlayerAccountTest</code> <code>winEmitsPlayerWonGame</code> + <code>playerWonGameIncreasesBalance</code>. So there is nothing to build/test on the domain <code>win</code> function; the only gap is the <strong>wiring</strong> in <code>execute()</code>. Don't re-test win through GameService.</li>
+  <li><strong>A balance assertion cannot force the win-vs-lose branch.</strong> Verified: a busting player under win-only code hits <code>win(0, PLAYER_BUSTED)</code> → <code>balance += 0</code> → unchanged, so a balance test passes with <em>no branch</em>. The only thing distinguishing win(0) from lose() is the <strong>recorded event</strong> (<code>PlayerWonGame</code> vs <code>PlayerLostGame</code>). So the elegant home for the decision is the <strong>domain</strong> (e.g. <code>PlayerAccount.settle(PlayerResult)</code>), unit-tested via <code>freshEvents()</code>, leaving the service branch-free. The current repo state: <code>execute()</code> has a <em>started</em> loop over <code>game.playerIds()</code> that finds the account and does nothing; the win test is present but <code>@Disabled</code>.</li>
+</ol>
 <h2>The likely arc tonight (interleaved reds)</h2>
 <ol>
-  <li><strong>win path</strong> — done in the lesson (tracer bullet).</li>
-  <li><strong>lose/push branch</strong> — a "player busts, balance unchanged, <code>PlayerLostGame</code> recorded" test forces <code>if (result.payout() &gt; 0) win else lose</code>. (Win-only code records the <em>wrong event</em> for a bust.)</li>
+  <li><strong>win path</strong> — balance-driven integration test; GREEN by switching the started loop from <code>game.playerIds()</code> to <code>game.playerResults()</code> and calling <code>win()</code> + <code>save()</code>. (tracer bullet)</li>
+  <li><strong>win/lose decision</strong> — event-driven, NOT balance-driven (see correction #2). Best pushed into the domain as <code>settle(...)</code>, unit-tested on <code>freshEvents()</code>.</li>
   <li><strong>multi-player</strong> — two accounts/two outcomes forces <code>placePlayerBets</code> to stop faking with <code>getFirst()</code> and loop all bets; then delete the commented-out <code>// if (playerAccountRepository != null)</code> scaffold (the <strong>contract</strong> step).</li>
 </ol>
 <h2>Teaching lessons captured</h2>
